@@ -1,0 +1,46 @@
+import torch
+import torch.nn as nn
+from torchvision import models
+from data_preparation import prepare_data
+from sklearn.metrics import confusion_matrix, accuracy_score
+
+def evaluate(model, dataloader, device, name="Test"):
+    model.eval()
+    all_preds = []
+    all_labels = []
+
+    with torch.no_grad():
+        for inputs, labels in dataloader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = model(inputs)
+            _, predicted = outputs.max(1)
+
+            all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    acc = accuracy_score(all_labels, all_preds)
+    cm = confusion_matrix(all_labels, all_preds)
+
+    print(f"\n✅ {name} Accuracy: {acc:.4f}")
+    print(f"📊 {name} Confusion Matrix:")
+    print(cm)
+
+    return acc, cm
+
+if __name__ == "__main__":
+    print("🚀 Starting model test...")
+
+    # Load test data only
+    _, _, test_loader, label_encoder = prepare_data(num_workers=0)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    # Load trained model
+    model = models.mobilenet_v2(weights=None)
+    model.classifier[1] = nn.Linear(model.last_channel, 2)
+    model.load_state_dict(torch.load("mobilenetv2_binary.pth", map_location=device))
+    model = model.to(device)
+
+    # Evaluate on test set
+    evaluate(model, test_loader, device, name="Test")
