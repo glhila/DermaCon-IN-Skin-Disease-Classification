@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torchvision import models
 from data_preparation import prepare_data
-from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 
 def evaluate(model, dataloader, device, name="Test"):
     model.eval()
@@ -18,12 +18,17 @@ def evaluate(model, dataloader, device, name="Test"):
             all_preds.extend(predicted.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
 
+    # Accuracy
     acc = accuracy_score(all_labels, all_preds)
     cm = confusion_matrix(all_labels, all_preds)
 
     print(f"\n✅ {name} Accuracy: {acc:.4f}")
     print(f"📊 {name} Confusion Matrix:")
     print(cm)
+
+    # Classification report: Precision, Recall, F1 per class
+    print("\n📋 Detailed classification report:")
+    print(classification_report(all_labels, all_preds, target_names=["Infectious", "Inflammatory"]))
 
     return acc, cm
 

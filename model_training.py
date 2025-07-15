@@ -5,15 +5,14 @@ from torchvision import models
 import time
 from data_preparation import prepare_data
 
-# צבעים להדפסה מודגשת
+# צבעים להדגשה
 YELLOW = '\033[93m'
 RED = '\033[91m'
 ENDC = '\033[0m'
 
-
 def train_model(num_epochs=10):
     """
-    Load data, define and train MobileNetV2 model with partial unfreezing for fine-tuning.
+    Train MobileNetV2 with more unfrozen layers (mid + deep) for better fine-tuning.
     """
 
     # Load DataLoaders
@@ -32,26 +31,30 @@ def train_model(num_epochs=10):
     # Replace the classifier head
     mobilenet.classifier[1] = nn.Linear(mobilenet.last_channel, 2)
 
-    # Unfreeze specific deep layers for fine-tuning
+    # Unfreeze **more layers** (mid + deep + classifier)
     for name, param in mobilenet.named_parameters():
-        if any(layer in name for layer in ["features.14", "features.15", "features.16", "features.17", "classifier"]):
+        if any(layer in name for layer in [
+            "features.10", "features.11", "features.12", "features.13",
+            "features.14", "features.15", "features.16", "features.17",
+            "classifier"
+        ]):
             param.requires_grad = True
 
-    # Move model to device
+    # Move to device
     mobilenet = mobilenet.to(device)
 
     # Check frozen status
     frozen = sum([not param.requires_grad for param in mobilenet.parameters()])
     total = len(list(mobilenet.parameters()))
     print(f"{YELLOW}✅ Frozen {frozen} out of {total} layers.{ENDC}")
-    print(f"{YELLOW}Note: You should see LESS than 100% frozen now – because some layers were unfrozen for fine-tuning.{ENDC}")
+    print(f"{YELLOW}Note: Even fewer layers are frozen now — more layers are fine-tuning!{ENDC}")
 
-    # Loss and optimizer (smaller learning rate for fine-tuning)
+    # Loss and optimizer (lower LR for sensitive fine-tuning)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(filter(lambda p: p.requires_grad, mobilenet.parameters()), lr=0.0003)
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, mobilenet.parameters()), lr=0.0002)
 
     # Training loop
-    print(f"\n{YELLOW}🚀 Starting training for {num_epochs} epochs...{ENDC}")
+    print(f"\n{YELLOW}🚀 Starting training for {num_epochs} epochs with deeper fine-tuning...{ENDC}")
     start_time = time.time()
 
     losses = []
@@ -95,9 +98,9 @@ def train_model(num_epochs=10):
 
     # Final loss trend summary
     if len(losses) >= 2 and losses[-1] < losses[0]:
-        print(f"\n{YELLOW}📉 Loss decreased from {losses[0]:.4f} to {losses[-1]:.4f} — training is improving!{ENDC}")
+        print(f"\n{YELLOW}📉 Loss decreased from {losses[0]:.4f} to {losses[-1]:.4f} — deeper fine-tuning improved training!{ENDC}")
     else:
-        print(f"\n{RED}⚠️ Loss did NOT decrease — training might not be effective yet. Consider tuning learning rate or unfreezing more layers.{ENDC}")
+        print(f"\n{RED}⚠️ Loss did NOT decrease — consider even more epochs or different LR.{ENDC}")
 
     print(f"\n{RED}🧪 You can now run evaluation on test_loader if desired!{ENDC}")
 
