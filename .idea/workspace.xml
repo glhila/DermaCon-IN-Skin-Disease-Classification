@@ -5,15 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/continue_training.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/AdvancedComputerArchitectures.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/AdvancedComputerArchitectures.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/deep_finetune.py" beforeDir="false" afterPath="$PROJECT_DIR$/deep_finetune.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobilenetv2_binary.pth" beforeDir="false" afterPath="$PROJECT_DIR$/mobilenetv2_binary.pth" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model_test.py" beforeDir="false" afterPath="$PROJECT_DIR$/model_test.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model_training.py" beforeDir="false" afterPath="$PROJECT_DIR$/model_training.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/weighted_finetune.py" beforeDir="false" afterPath="$PROJECT_DIR$/weighted_finetune.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
