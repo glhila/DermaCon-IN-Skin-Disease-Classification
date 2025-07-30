@@ -36,12 +36,21 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
+    # Decide which model to load
+    model_to_validate = "mobilenetv2_binary.pth"
 
     # Load trained model
     model = models.mobilenet_v2(weights=None)
     model.classifier[1] = nn.Linear(model.last_channel, 2)
-    model.load_state_dict(torch.load("mobilenetv2_binary.pth", map_location=device))
-    model.to(device)
+
+    if model_to_validate == "mobilenetv2_binary_quantized.pth":
+        # Apply dynamic quantization wrapper
+        model = torch.quantization.quantize_dynamic(
+            model, {nn.Linear}, dtype=torch.qint8
+        )
+
+    model.load_state_dict(torch.load(model_to_validate, map_location=device))
+    model = model.to(device)
 
     # Run validation
     evaluate(model, val_loader, device, name="Validation")

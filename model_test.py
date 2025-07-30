@@ -41,10 +41,19 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # Load trained model
+    # decide which model to load
+    model_to_load = "mobilenetv2_binary_quantized.pth"
+
     model = models.mobilenet_v2(weights=None)
     model.classifier[1] = nn.Linear(model.last_channel, 2)
-    model.load_state_dict(torch.load("mobilenetv2_binary.pth", map_location=device))
+
+    if model_to_load == "mobilenetv2_binary_quantized.pth":
+        # Load quantized model
+        model = torch.quantization.quantize_dynamic(
+            model, {nn.Linear}, dtype=torch.qint8
+        )
+
+    model.load_state_dict(torch.load(model_to_load, map_location=device))
     model = model.to(device)
 
     # Evaluate on test set
