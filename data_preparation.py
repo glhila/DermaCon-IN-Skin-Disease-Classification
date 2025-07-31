@@ -15,7 +15,7 @@ from torch.utils.data import Dataset, DataLoader
 # This class defines how our dataset interacts with PyTorch.
 # It's placed here (globally) so it can be accessed by the prepare_data function.
 class DermaDataset(Dataset):
-    def __init__(self, dataframe, transform=None):
+    def __init__(self, dataframe, transform=None, quantize_input=False, quant_bits=8):
         """
         Initializes the DermaDataset.
 
@@ -23,9 +23,14 @@ class DermaDataset(Dataset):
             dataframe (pd.DataFrame): The pandas DataFrame containing image metadata and the 'image' column.
                                       The 'image' column is expected to hold a dictionary with 'bytes' or 'array' keys.
             transform (albumentations.Compose, optional): The image transformation pipeline. Defaults to None.
+            quantize_input (bool, optional): Whether to quantize the input images. Defaults to False.
+            quant_bits (int, optional): Number of bits for quantization. Defaults to 8.
         """
         self.dataframe = dataframe
         self.transform = transform
+        self.quantize_input = quantize_input
+        self.quant_bits = quant_bits
+        self.max_val = 2 ** quant_bits - 1
 
     def __len__(self):
         """
@@ -77,13 +82,24 @@ class DermaDataset(Dataset):
         # .float() converts the tensor to float type, necessary for model input.
         image_tensor = torch.from_numpy(image_np).permute(2, 0, 1).float()
 
+        if self.quantize_input:
+            # Quantization process
+            image_tensor = torch.clamp(image_tensor, 0, 1)  # Ensure [0,1] range
+            image_quantized = (image_tensor * self.max_val).round().byte()
+            image_tensor = image_quantized.float() / self.max_val
+
+            # Reapply normalization (important!)
+            mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+            std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+            image_tensor = (image_tensor - mean) / std
+
         # Convert the label to a PyTorch tensor with Long data type (common for classification targets).
         return image_tensor, torch.tensor(label, dtype=torch.long)
 
 
 # --- Main Data Preparation Function ---
 # This function encapsulates all steps required to prepare the dataset.
-def prepare_data(batch_size: int = 32, num_workers: int = None):
+def prepare_data(batch_size: int = 32, num_workers: int = None,  quantize_input=False):
     """
     Prepares the dermatological image data for deep learning training.
 
@@ -197,9 +213,9 @@ def prepare_data(batch_size: int = 32, num_workers: int = None):
     # --- Step 4: Create Dataset Instances and DataLoaders ---
     print("\nCreating Dataset Instances and DataLoaders...")
     # Create instances of our custom DermaDataset for each data split.
-    train_dataset = DermaDataset(df_train, transform=train_transform)
-    val_dataset = DermaDataset(df_validation, transform=val_test_transform)
-    test_dataset = DermaDataset(df_test, transform=val_test_transform)
+    train_dataset = DermaDataset(df_train, transform=train_transform, quantize_input=quantize_input)
+    val_dataset = DermaDataset(df_validation, transform=val_test_transform, quantize_input=quantize_input)
+    test_dataset = DermaDataset(df_test, transform=val_test_transform, quantize_input=quantize_input)
 
     # Determine the number of worker processes for DataLoader.
     if num_workers is None:
