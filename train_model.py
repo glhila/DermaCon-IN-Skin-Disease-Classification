@@ -36,14 +36,14 @@ def train_model():
     # Stage configs
     # -------------------
     stages = [
-        {"layers": ["classifier"], "epochs": 10, "lr": 0.001, "name": "Stage 1: Classifier only"},
+        {"layers": ["classifier"], "epochs": 2, "lr": 0.001, "name": "Stage 1: Classifier only"},
+        {"layers": ["features.15", "features.16", "features.17", "features.18", "classifier"],
+         "epochs": 10, "lr": 0.0001, "name": "Stage 2: Features.15-18 + Classifier "},
         {"layers": [
             "features.8", "features.9", "features.10", "features.11",
             "features.12", "features.13", "features.14", "features.15",
-            "features.16", "features.17", "classifier"
-        ], "epochs": 12, "lr": 0.0001, "name": "Stage 2: Features.8–17 + Classifier"},
-        {"layers": ["features.18", "classifier"], "epochs": 6, "lr": 0.00005, "name": "Stage 3: Features.18 + Classifier"},
-    ]
+            "features.16", "features.17", "features.18", "classifier"
+        ], "epochs": 12, "lr": 0.00005, "name": "Stage 3: Features.8–18 + Classifier"}]
 
     total_epochs = sum(stage["epochs"] for stage in stages)
     completed_epochs = 0
