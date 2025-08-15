@@ -189,26 +189,42 @@ def prepare_data(batch_size: int = 32, num_workers: int = None,  quantize_input=
 
     # --- Step 3: Define Image Augmentation Transforms ---
     print("\nDefining Image Augmentation Transforms...")
-    # Define a pipeline of random transformations for the training set.
-    train_transform = A.Compose([
-        A.Resize(224, 224),  # Resize all images to a consistent input size (e.g., for CNNs).
-        A.HorizontalFlip(p=0.5),  # Randomly flip images horizontally (50% chance).
-        A.VerticalFlip(p=0.2),  # Randomly flip images vertically (20% chance).
-        A.Rotate(limit=30, p=0.7),  # Randomly rotate images up to 30 degrees.
-        A.RandomBrightnessContrast(p=0.3),  # Randomly adjust brightness and contrast.
-        A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
-        # Small random affine transformations.
-        A.GaussNoise(p=0.2),  # Add random Gaussian noise.
-        # Normalize pixel values using ImageNet mean and std (standard for pre-trained models).
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-    ])
 
-    # Define transformations for validation and test sets (no augmentation, just resize and normalize).
-    val_test_transform = A.Compose([
-        A.Resize(224, 224),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-    ])
+    if quantize_input:
+        # When quantizing inside DermaDataset, skip Albumentations Normalize here
+        train_transform = A.Compose([
+            A.Resize(224, 224),
+            A.HorizontalFlip(p=0.5),
+            A.VerticalFlip(p=0.2),
+            A.Rotate(limit=30, p=0.7),
+            A.RandomBrightnessContrast(p=0.3),
+            A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
+            A.GaussNoise(p=0.2),
+        ])
+
+        val_test_transform = A.Compose([
+            A.Resize(224, 224),
+        ])
+    else:
+        # Original behavior: Normalize with ImageNet stats in Albumentations
+        train_transform = A.Compose([
+            A.Resize(224, 224),
+            A.HorizontalFlip(p=0.5),
+            A.VerticalFlip(p=0.2),
+            A.Rotate(limit=30, p=0.7),
+            A.RandomBrightnessContrast(p=0.3),
+            A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
+            A.GaussNoise(p=0.2),
+            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ])
+
+        val_test_transform = A.Compose([
+            A.Resize(224, 224),
+            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ])
+
     print("Image augmentation transforms defined successfully.")
+
 
     # --- Step 4: Create Dataset Instances and DataLoaders ---
     print("\nCreating Dataset Instances and DataLoaders...")

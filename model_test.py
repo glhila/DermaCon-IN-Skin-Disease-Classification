@@ -42,7 +42,8 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     # decide which model to load
-    model_to_load = "mobilenetv2_binary.pth"
+    #model_to_load = "mobilenetv2_binary.pth"
+    model_to_load = "mobilenetv2_binary_quantized.pth"
 
     model = models.mobilenet_v2(weights=None)
     model.classifier[1] = nn.Linear(model.last_channel, 2)
