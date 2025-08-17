@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # model_path = "mobilenetv2_binary.pth"; mode = "fp32"
 
     # 2) FP32 fine-tuned weights with quantized-input training (your new NQ checkpoint)
-    model_path = "mobilenetv2_binary_NQ.pth"; mode = "fp32"
+    model_path = "mobilenetv2_data_quantized.pth"; mode = "fp32"
 
     # 3) QAT checkpoint (state_dict) — BEFORE convert_fx
     # model_path = "mobilenetv2_qat_state.pth"; mode = "qat_state"
@@ -61,10 +61,10 @@ if __name__ == "__main__":
     # model_path = "mobilenetv2_int8.pt"; mode = "int8_module"
 
     # 5) Converted INT8 state_dict (.pth) — rebuild INT8 graph then load
-    # model_path = "mobilenetv2_int8.pth"; mode = "int8_state"
+    # model_path = "mobilenetv2_model_quantized.pth"; mode = "int8_state"
 
     # 6) Post-training dynamic quant (Linear-only) — not for your NQ run
-    # model_path = "mobilenetv2_binary_quantized.pth"; mode = "dynamic_linear"
+    # model_path = "mobilenetv2_NOT_quantized.pth"; mode = "dynamic_linear"
 
     print(f"Mode: {mode} | Model path: {model_path}")
 

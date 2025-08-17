@@ -127,8 +127,8 @@ def train_model():
     # -------------------
     # Save final model
     # -------------------
-    torch.save(mobilenet.state_dict(), "mobilenetv2_binary_NQ.pth")
-    print(f"{YELLOW}📦 Final model saved as mobilenetv2_binary_NQ.pth{ENDC}")
+    torch.save(mobilenet.state_dict(), "mobilenetv2_data_quantized.pth")
+    print(f"{YELLOW}📦 Final model saved as mobilenetv2_data_quantized.pth{ENDC}")
 
 if __name__ == "__main__":
     train_model()

@@ -43,7 +43,7 @@ if __name__ == "__main__":
     model = models.mobilenet_v2(weights=None)
     model.classifier[1] = nn.Linear(model.last_channel, 2)
 
-    if model_to_validate == "mobilenetv2_binary_quantized.pth":
+    if model_to_validate == "mobilenetv2_NOT_quantized.pth":
         # Apply dynamic quantization wrapper
         model = torch.quantization.quantize_dynamic(
             model, {nn.Linear}, dtype=torch.qint8
