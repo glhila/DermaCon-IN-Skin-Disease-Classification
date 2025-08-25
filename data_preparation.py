@@ -15,7 +15,7 @@ from torch.utils.data import Dataset, DataLoader
 # This class defines how our dataset interacts with PyTorch.
 # It's placed here (globally) so it can be accessed by the prepare_data function.
 class DermaDataset(Dataset):
-    def __init__(self, dataframe, transform=None, quantize_input=False, quant_bits=8):
+    def __init__(self, dataframe, transform=None, quantize_input=False):
         """
         Initializes the DermaDataset.
 
@@ -29,8 +29,6 @@ class DermaDataset(Dataset):
         self.dataframe = dataframe
         self.transform = transform
         self.quantize_input = quantize_input
-        self.quant_bits = quant_bits
-        self.max_val = 2 ** quant_bits - 1
 
     def __len__(self):
         """
@@ -84,9 +82,11 @@ class DermaDataset(Dataset):
 
         if self.quantize_input:
             # Quantization process
-            image_tensor = torch.clamp(image_tensor, 0, 1)  # Ensure [0,1] range
-            image_quantized = (image_tensor * self.max_val).round().byte()
-            image_tensor = image_quantized.float() / self.max_val
+             # Normalize to [0,1] range first
+            image_tensor = image_tensor / 255.0
+            
+            # Convert to binary (0 or 1) using thresholding
+            image_tensor = (image_tensor > 0.5).float()
 
             # Reapply normalization (important!)
             mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
