@@ -82,11 +82,9 @@ class DermaDataset(Dataset):
 
         if self.quantize_input:
             # Quantization process
-             # Normalize to [0,1] range first
-            image_tensor = image_tensor / 255.0
-            
-            # Convert to binary (0 or 1) using thresholding
-            image_tensor = (image_tensor > 0.5).float()
+            image_tensor = torch.clamp(image_tensor, 0, 1)  # Ensure [0,1] range
+            image_quantized = (image_tensor * self.max_val).round().byte()
+            image_tensor = image_quantized.float() / self.max_val
 
             # Reapply normalization (important!)
             mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
@@ -99,7 +97,7 @@ class DermaDataset(Dataset):
 
 # --- Main Data Preparation Function ---
 # This function encapsulates all steps required to prepare the dataset.
-def prepare_data(batch_size: int = 32, num_workers: int = None,  quantize_input=False):
+def prepare_data(batch_size: int = 32, num_workers: int = None, quantize_input=False):
     """
     Prepares the dermatological image data for deep learning training.
 
@@ -225,7 +223,6 @@ def prepare_data(batch_size: int = 32, num_workers: int = None,  quantize_input=
 
     print("Image augmentation transforms defined successfully.")
 
-
     # --- Step 4: Create Dataset Instances and DataLoaders ---
     print("\nCreating Dataset Instances and DataLoaders...")
     # Create instances of our custom DermaDataset for each data split.
@@ -278,3 +275,4 @@ if __name__ == "__main__":
     # Example usage: prepare data with a batch size of 64.
     train_loader, val_loader, test_loader, label_encoder = prepare_data(batch_size=64)
     print("\nAll DataLoaders and LabelEncoder are prepared and ready for use.")
+      
