@@ -6,13 +6,10 @@
 # 1 Final model:
 # D: Quantized data     + Quantized model
 # ------------------------------------------------------------
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torchvision import models
-import time
+
 from data_preparation import prepare_data
 from train_model_NQ import train_model
+from train_model_Q import train_model as train_model_quantized
 from newTester import evaluate_saved_model
 
 def run_models(mode):
@@ -28,18 +25,18 @@ def run_models(mode):
             train_loader, val_loader, test_loader, _ = prepare_data(batch_size=32, num_workers=0, quantize_input=True)
             train_model(data_is_quantized=True, stage_epochs=(6,20,24), early_stop_patience=6, train_loader=train_loader, val_loader=val_loader)
             evaluate_saved_model("mobilenetv2_best_data_quantized.pth", mode="fp32", test_loader=test_loader)
-
+        case 'C':
+            print("Running Model C: Non-quantized data + Quantized model")
+            train_loader, val_loader, test_loader, _ = prepare_data(batch_size=32, num_workers=0, quantize_input=False)
+            train_model_quantized(data_is_quantized=False, stage_epochs=(3,10,12), early_stop_patience=5, train_loader=train_loader, val_loader=val_loader)
+            evaluate_saved_model("mobilenetv2_best_model_quantized.pth", mode="int8", test_loader=test_loader)
+        case 'D':
+            print("Running Model D: Quantized data + Quantized model")
+            train_loader, val_loader, test_loader, _ = prepare_data(batch_size=32, num_workers=0, quantize_input=True)
+            train_model_quantized(data_is_quantized=True, stage_epochs=(6,20,24), early_stop_patience=6, train_loader=train_loader, val_loader=val_loader)
+            evaluate_saved_model("mobilenetv2_best_fully_quantized.pth", mode="int8", test_loader=test_loader)
         case _:
             raise ValueError("Invalid mode. Choose 'A' or 'B' or 'C' or 'D'.")
-
-    #elif mode == 'C':
-    #    print("Running Model C: Non-quantized data + Quantized model")
-    #    train_model(data_is_quantized=False, model_is_quantized=True)
-    #elif mode == 'D':
-    #    print("Running Model D: Quantized data + Quantized model")
-    #    train_model(data_is_quantized=True, model_is_quantized=True)
-    #else:
-    #    print("Invalid mode. Please choose from 'A', 'B', 'C', or 'D'.")
 
 if __name__ == "__main__":
 

@@ -1,16 +1,11 @@
+import copy
+import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import models
-import time
-#from data_preparation import prepare_data
-from model_validation import evaluate
-import copy
 from torch.utils.data import DataLoader
 
-YELLOW = "\033[93m"
-RED = "\033[91m"
-ENDC = "\033[0m"
 
 
 def train_model(
@@ -23,169 +18,175 @@ def train_model(
 ):
     """
     Progressive fine-tuning of MobileNetV2 in 3 stages:
-    1. Train classifier only
-    2. Unfreeze deeper blocks (features.8–17 + classifier)
-    3. Unfreeze final block (features.18 + classifier) for fine polishing
+    1) Train classifier only
+    2) Unfreeze deeper blocks (features.15–18 + classifier)
+    3) Unfreeze final block (features.8–18 + classifier) for fine polishing
+    Includes per-epoch validation and early stopping.
     """
 
     # -------------------
-    # Data + device setup
+    # Device
     # -------------------
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"{YELLOW}Using device: {device}{ENDC}")
+    print(f"Using device: {device}")
 
     # -------------------
-    # Load pretrained base
+    # Model
     # -------------------
-    mobilenet = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.DEFAULT)
-    mobilenet.classifier[1] = nn.Linear(mobilenet.last_channel, 2)
-    mobilenet = mobilenet.to(device)
+    model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.DEFAULT)
+    model.classifier[1] = nn.Linear(model.last_channel, 2)
+    model = model.to(device)
 
     # -------------------
-    # Stage configs
+    # Stages
     # -------------------
     stages = [
         {"layers": ["classifier"], "epochs": stage_epochs[0], "lr": 0.001, "name": "Stage 1: Classifier only"},
-        {"layers": ["features.15", "features.16", "features.17", "features.18", "classifier"],
-         "epochs": stage_epochs[1], "lr": 0.0001, "name": "Stage 2: Features.15-18 + Classifier "},
-        {"layers": [
-            "features.8", "features.9", "features.10", "features.11",
-            "features.12", "features.13", "features.14", "features.15",
-            "features.16", "features.17", "features.18", "classifier"
-        ], "epochs": stage_epochs[2], "lr": 0.00005, "name": "Stage 3: Features.8–18 + Classifier"}]
+        {"layers": ["features", "classifier"], "epochs": stage_epochs[1], "lr": 0.0001,
+         "name": "Stage 2: Features + Classifier"},
+        {"layers": ["features", "classifier"], "epochs": stage_epochs[2], "lr": 0.00005,
+         "name": "Stage 3: Features + Classifier"}
+    ]
 
-    total_epochs = sum(stage["epochs"] for stage in stages)
+    total_epochs = sum(s["epochs"] for s in stages)
     completed_epochs = 0
     global_start = time.time()
 
-
-    best_val_acc = 0.0
-    patience = early_stop_patience # Number of epochs to wait before stopping
-    best_val_loss = float('inf') # Best validation loss so far
-    early_stopping_counter = 0
+    # Track best across all stages
+    best_val_acc_global = 0.0
 
     # -------------------
     # Training loop helper
     # -------------------
     def run_training(model, stage, stage_idx):
-        nonlocal completed_epochs, best_val_acc
-        best_model_weights = None
-        best_val_loss = float('inf')
+        nonlocal completed_epochs, best_val_acc_global
+
+        best_model_weights_stage = None
+        best_val_loss_stage = float("inf")
         early_stopping_counter = 0
-        
+        patience = early_stop_patience
+
         # Freeze all
-        for param in model.parameters():
-            param.requires_grad = False
-        
-        # Unfreeze requested layers
-        for name, param in model.named_parameters():
+        for p in model.parameters():
+            p.requires_grad = False
+
+        # Unfreeze requested
+        for name, p in model.named_parameters():
             if any(layer in name for layer in stage["layers"]):
-                param.requires_grad = True
-        
-        # Optimizer + loss
+                p.requires_grad = True
+
+        # Optimizer / loss / scheduler
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=stage["lr"])
+        optimizer = optim.Adam((p for p in model.parameters() if p.requires_grad), lr=stage["lr"])
         scheduler = None
         if use_lr_on_plateau:
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer,
-                mode="min",
-                factor=0.1,
-                patience=2,
-                cooldown=1,
-                min_lr=1e-6,
-                verbose=False,
+                optimizer, mode="min", factor=0.1, patience=2, cooldown=1, min_lr=1e-6,
             )
-        
-        # Count trainable
-        frozen = sum([not p.requires_grad for p in model.parameters()])
-        total = len(list(model.parameters()))
-        print(f"\n{YELLOW}--- {stage['name']} ---")
-        print(f"Trainable params: {total - frozen}/{total}, LR={stage['lr']}, Epochs={stage['epochs']}{ENDC}")
-        
+
+        # Info
+        frozen = sum(int(not p.requires_grad) for p in model.parameters())
+        total = sum(1 for _ in model.parameters())
+        print(f"\n--- {stage['name']} ---")
+        print(f"Trainable params (tensors): {total - frozen}/{total}, LR={stage['lr']}, Epochs={stage['epochs']}")
+
         stage_start = time.time()
-        # Training loop
+
         for epoch in range(stage["epochs"]):
             epoch_start = time.time()
             model.train()
-        
+
             running_loss, correct, total_samples = 0.0, 0, 0
-        
-            for inputs, labels in train_loader:
-                inputs, labels = inputs.to(device), labels.to(device)
-        
-                optimizer.zero_grad()
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
+
+            for xb, yb in train_loader:
+                xb, yb = xb.to(device), yb.to(device)
+
+                optimizer.zero_grad(set_to_none=True)
+                out = model(xb)
+                loss = criterion(out, yb)
                 loss.backward()
                 optimizer.step()
-        
-                running_loss += loss.item() * inputs.size(0)
-                correct += outputs.argmax(dim=1).eq(labels).sum().item()
-                total_samples += labels.size(0)
-        
-            avg_loss = running_loss / total_samples
-            acc = correct / total_samples
-            epoch_time = time.time() - epoch_start
-        
-            # Update counters
+
+                running_loss += loss.item() * xb.size(0)
+                correct += out.argmax(1).eq(yb).sum().item()
+                total_samples += yb.size(0)
+
+            train_loss = running_loss / max(1, total_samples)
+            train_acc = correct / max(1, total_samples)
+
+            # ----- Validation -----
+            model.eval()
+            val_loss, val_correct, val_total = 0.0, 0, 0
+            with torch.no_grad():
+                for xb, yb in val_loader:
+                    xb, yb = xb.to(device), yb.to(device)
+                    out = model(xb)
+                    loss = criterion(out, yb)
+                    val_loss += loss.item() * xb.size(0)
+                    val_correct += out.argmax(1).eq(yb).sum().item()
+                    val_total += yb.size(0)
+
+            val_loss /= max(1, val_total)
+            val_acc = val_correct / max(1, val_total)
+
+            if scheduler is not None:
+                scheduler.step(val_loss)
+
+            # Progress / ETA
             completed_epochs += 1
             elapsed = time.time() - global_start
-            avg_epoch_time = elapsed / completed_epochs
+            avg_epoch_time = elapsed / max(1, completed_epochs)
             est_remaining = avg_epoch_time * (total_epochs - completed_epochs)
-        
+
             print(
                 f"Stage {stage_idx+1}/{len(stages)} | Epoch {epoch+1}/{stage['epochs']} "
                 f"(Global {completed_epochs}/{total_epochs}) "
-                f"| Loss: {avg_loss:.4f} | Acc: {acc:.4f} "
-                f"| Time: {epoch_time:.1f}s "
-                f"| ETA left: {est_remaining/60:.1f} min"
+                f"| TrainLoss: {train_loss:.4f} | TrainAcc: {train_acc:.4f} "
+                f"| ValLoss: {val_loss:.4f} | ValAcc: {val_acc:.4f} "
+                f"| Time: {time.time() - epoch_start:.1f}s | ETA: {est_remaining/60:.1f} min"
             )
-            
-            # Run validation after each epoch
-            print("-" * 50)
-            print(f"Running validation for Stage {stage_idx+1}, Epoch {epoch+1}")
-            val_acc, val_loss = evaluate(model, val_loader, device, name="Validation")
-            if scheduler is not None:
-                scheduler.step(val_loss)
-            print("-" * 50)
-        
-            # Early Stopping + Best tracking (per stage)
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
+
+            # ----- Early stopping (per stage by val_loss) -----
+            if val_loss < best_val_loss_stage:
+                best_val_loss_stage = val_loss
                 early_stopping_counter = 0
-                best_model_weights = copy.deepcopy(model.state_dict())
+                best_model_weights_stage = copy.deepcopy(model.state_dict())
             else:
                 early_stopping_counter += 1
-        
-            # Save on accuracy improvement (immediately)
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
+                if early_stopping_counter >= patience:
+                    print("Early stopping triggered for this stage.")
+                    break
+
+            # Save best-by-accuracy across all stages
+            if val_acc > best_val_acc_global:
+                best_val_acc_global = val_acc
                 torch.save(
                     model.state_dict(),
                     "mobilenetv2_best_data_quantized.pth" if data_is_quantized else "mobilenetv2_best_not_quantized.pth",
                 )
-                print(f"{YELLOW}New best validation accuracy! Model saved as {'mobilenetv2_best_data_quantized.pth' if data_is_quantized else 'mobilenetv2_best_not_quantized.pth'}{ENDC}")
-        
-            if early_stopping_counter >= patience:
-                print(f"{RED}Early stopping triggered! Training stopped.{ENDC}")
-                break
-        
-        # Restore best weights for this stage if we captured any
-        if best_model_weights is not None:
-            model.load_state_dict(best_model_weights)
-        
-        stage_time = time.time() - stage_start
-        print(f"{YELLOW}✅ {stage['name']} finished in {stage_time/60:.1f} min{ENDC}")
+                print(
+                    "New best validation accuracy. "
+                    f"Saved: {'mobilenetv2_best_data_quantized.pth' if data_is_quantized else 'mobilenetv2_best_not_quantized.pth'}"
+                )
+
+        # Restore best weights for this stage (if any)
+        if best_model_weights_stage is not None:
+            model.load_state_dict(best_model_weights_stage)
+
+        print(f"{stage['name']} finished in {(time.time() - stage_start)/60:.1f} min")
 
     # -------------------
     # Run all stages
     # -------------------
     for i, stage in enumerate(stages):
-        run_training(mobilenet, stage, i)
+        run_training(model, stage, i)
 
     total_time = time.time() - global_start
-    print(f"\n{YELLOW}🏁 Training complete in {total_time/60:.1f} minutes total.{ENDC}")
+    print(f"\nTraining complete in {total_time/60:.1f} minutes total.")
+
+    # Optionally return the trained model
+    return model
+
 
 if __name__ == "__main__":
     train_model()
