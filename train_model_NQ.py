@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import models
 import time
-from data_preparation import prepare_data
+#from data_preparation import prepare_data
 from model_validation import evaluate
 import copy
 from torch.utils.data import DataLoader
