@@ -3,6 +3,8 @@ import torch.nn as nn
 from torchvision import models
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 from torch.utils.data import DataLoader
+from New_training_STE import convert_mobilenetv2_to_bnn
+
 #from data_preparation import prepare_data
 
 # QAT/FX imports (only needed for qat_state / int8_state modes)
@@ -22,6 +24,13 @@ def load_model_for_eval(model_path: str, mode: str, device: torch.device, num_cl
     """
     if mode == "fp32":
         model = build_fp32_model(num_classes=num_classes)
+        sd = torch.load(model_path, map_location=device)
+        model.load_state_dict(sd)
+        return model.to(device).eval()
+
+    if mode == "bnn_state":
+        # BNN checkpoint from New_training_STE.py (binary convs, float classifier)
+        model = build_bnn_model(num_classes=num_classes)
         sd = torch.load(model_path, map_location=device)
         model.load_state_dict(sd)
         return model.to(device).eval()
@@ -94,6 +103,20 @@ def build_fp32_model(num_classes=2):
     m = models.mobilenet_v2(weights=None)
     m.classifier[1] = nn.Linear(m.last_channel, num_classes)
     return m
+
+def build_bnn_model(num_classes=2, keep_first_conv_fp=True):
+    # same base arch as training: MobileNetV2 with 2-class head
+    m = models.mobilenet_v2(weights=None)
+    m.classifier[1] = nn.Linear(m.last_channel, num_classes)
+    # convert convs to binarized layers exactly like training
+    m = convert_mobilenetv2_to_bnn(
+        m,
+        keep_first_conv_fp=keep_first_conv_fp,  # True in your training
+        quant_mode='det',
+        allow_scale=False
+    )
+    return m
+
 
 
 if __name__ == "__main__":
