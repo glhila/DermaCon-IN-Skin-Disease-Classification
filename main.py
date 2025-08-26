@@ -25,22 +25,25 @@ def run_models(mode):
             train_loader, val_loader, test_loader, _ = prepare_data(batch_size=32, num_workers=0, quantize_input=True)
             train_model(data_is_quantized=True, stage_epochs=(6,20,24), early_stop_patience=6, train_loader=train_loader, val_loader=val_loader)
             evaluate_saved_model("mobilenetv2_best_data_quantized.pth", mode="fp32", test_loader=test_loader)
+        
         case 'C':
             print("Running Model C: Non-quantized data + Quantized model")
             train_loader, val_loader, test_loader, _ = prepare_data(batch_size=32, num_workers=0, quantize_input=False)
             train_model_quantized(data_is_quantized=False, stage_epochs=(3,10,12), early_stop_patience=5, train_loader=train_loader, val_loader=val_loader)
             evaluate_saved_model("mobilenetv2_best_model_quantized.pth", mode="int8", test_loader=test_loader)
+        
         case 'D':
             print("Running Model D: Quantized data + Quantized model")
             train_loader, val_loader, test_loader, _ = prepare_data(batch_size=32, num_workers=0, quantize_input=True)
             train_model_quantized(data_is_quantized=True, stage_epochs=(6,20,24), early_stop_patience=6, train_loader=train_loader, val_loader=val_loader)
             evaluate_saved_model("mobilenetv2_best_fully_quantized.pth", mode="int8", test_loader=test_loader)
+        
         case _:
             raise ValueError("Invalid mode. Choose 'A' or 'B' or 'C' or 'D'.")
 
 if __name__ == "__main__":
 
-    run_models('A')
+    #run_models('A')
     #run_models('B')
-    #run_models('C')
+    run_models('C')
     #run_models('D')
