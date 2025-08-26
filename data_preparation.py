@@ -15,7 +15,7 @@ from torch.utils.data import Dataset, DataLoader
 # This class defines how our dataset interacts with PyTorch.
 # It's placed here (globally) so it can be accessed by the prepare_data function.
 class DermaDataset(Dataset):
-    def __init__(self, dataframe, transform=None, quantize_input=False):
+    def __init__(self, dataframe, transform=None, quantize_input=False, quant_bits=8):
         """
         Initializes the DermaDataset.
 
@@ -29,6 +29,8 @@ class DermaDataset(Dataset):
         self.dataframe = dataframe
         self.transform = transform
         self.quantize_input = quantize_input
+        self.quant_bits = quant_bits
+        self.max_val = 2 ** quant_bits - 1
 
     def __len__(self):
         """
@@ -83,15 +85,13 @@ class DermaDataset(Dataset):
         if self.quantize_input:
             # Quantization process
             image_tensor = torch.clamp(image_tensor, 0, 1)  # Ensure [0,1] range
-            threshold = 0.5
-            image_binary = (image_tensor > threshold).float()
-            #image_quantized = (image_tensor * self.max_val).round().byte()
-            #image_tensor = image_quantized.float() / self.max_val
+            image_quantized = (image_tensor * self.max_val).round().byte()
+            image_tensor = image_quantized.float() / self.max_val
 
             # Reapply normalization (important!)
             mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
             std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
-            image_tensor = (image_binary - mean) / std
+            image_tensor = (image_tensor - mean) / std
 
         # Convert the label to a PyTorch tensor with Long data type (common for classification targets).
         return image_tensor, torch.tensor(label, dtype=torch.long)
@@ -99,7 +99,7 @@ class DermaDataset(Dataset):
 
 # --- Main Data Preparation Function ---
 # This function encapsulates all steps required to prepare the dataset.
-def prepare_data(batch_size: int = 32, num_workers: int = None, quantize_input=False):
+def prepare_data(batch_size: int = 32, num_workers: int = None,  quantize_input=False):
     """
     Prepares the dermatological image data for deep learning training.
 
@@ -123,36 +123,29 @@ def prepare_data(batch_size: int = 32, num_workers: int = None, quantize_input=F
             - test_loader (torch.utils.data.DataLoader): DataLoader for the test set.
             - label_encoder (sklearn.preprocessing.LabelEncoder): The encoder used to map labels.
     """
-    print("--- Starting Data Preparation Process ---")
+    pass  # No startup logging
 
     # --- Step 1: Load and Filter the DermaCon-IN dataset ---
-    print("Loading the DermaCon-IN dataset...")
+    # Load dataset
     try:
         dataset = load_dataset("ekacare/DermaCon-IN", split="train")
         df = dataset.to_pandas()
-        print(f"Dataset loaded successfully. Total samples: {len(df)}")
     except Exception as e:
-        print(f"An error occurred while loading the dataset: {e}")
-        print("Please ensure the 'datasets' library is installed and the dataset is available.")
         # Re-raise the exception to indicate a critical failure in data loading.
         raise
 
     target_main_classes = ["Infectious Disorders", "Inflammatory Disorders"]
     df_filtered = df[df["main_class"].isin(target_main_classes)].copy()
 
-    print(f"Filtered dataset contains {len(df_filtered)} samples for target classes: {target_main_classes}")
-    print("Distribution of main classes in the filtered dataset:")
-    print(df_filtered["main_class"].value_counts())
+    # No verbose dataset distribution output
 
     # --- Step 2: Encode Labels and Split Dataset ---
-    print("\nEncoding Labels and Splitting Dataset...")
+    # Encode labels and split
     label_encoder = LabelEncoder()
     df_filtered['label'] = label_encoder.fit_transform(df_filtered['main_class'])
 
     # Display the mapping created by the label encoder (e.g., 'Infectious Disorders': 0).
-    print("Label mapping:")
-    for i, label_name in enumerate(label_encoder.classes_):
-        print(f"  {label_name}: {i}")
+    # No label mapping prints
 
     # Define splitting ratios
     train_ratio = 0.7
@@ -176,57 +169,36 @@ def prepare_data(batch_size: int = 32, num_workers: int = None, quantize_input=F
     )
 
     # Print the final sizes of each dataset split.
-    print(f"Dataset split into:")
-    print(f"  Training set size: {len(df_train)}")
-    print(f"  Validation set size: {len(df_validation)}")
-    print(f"  Test set size: {len(df_test)}")
+    # No dataset size prints
 
     # Print the normalized distribution of labels for each split to confirm stratification worked.
-    print("\nDistribution of labels across splits (normalized):")
-    print(f"  Train: \n{df_train['label'].value_counts(normalize=True)}")
-    print(f"  Validation: \n{df_validation['label'].value_counts(normalize=True)}")
-    print(f"  Test: \n{df_test['label'].value_counts(normalize=True)}")
+    # No label distribution prints
 
     # --- Step 3: Define Image Augmentation Transforms ---
-    print("\nDefining Image Augmentation Transforms...")
+    # Define transforms
+    # Define a pipeline of random transformations for the training set.
+    train_transform = A.Compose([
+        A.Resize(224, 224),  # Resize all images to a consistent input size (e.g., for CNNs).
+        A.HorizontalFlip(p=0.5),  # Randomly flip images horizontally (50% chance).
+        A.VerticalFlip(p=0.2),  # Randomly flip images vertically (20% chance).
+        A.Rotate(limit=30, p=0.7),  # Randomly rotate images up to 30 degrees.
+        A.RandomBrightnessContrast(p=0.3),  # Randomly adjust brightness and contrast.
+        A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
+        # Small random affine transformations.
+        A.GaussNoise(p=0.2),  # Add random Gaussian noise.
+        # Normalize pixel values using ImageNet mean and std (standard for pre-trained models).
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    ])
 
-    if quantize_input:
-        # When quantizing inside DermaDataset, skip Albumentations Normalize here
-        train_transform = A.Compose([
-            A.Resize(224, 224),
-            A.HorizontalFlip(p=0.5),
-            A.VerticalFlip(p=0.2),
-            A.Rotate(limit=30, p=0.7),
-            A.RandomBrightnessContrast(p=0.3),
-            A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
-            A.GaussNoise(p=0.2),
-        ])
-
-        val_test_transform = A.Compose([
-            A.Resize(224, 224),
-        ])
-    else:
-        # Original behavior: Normalize with ImageNet stats in Albumentations
-        train_transform = A.Compose([
-            A.Resize(224, 224),
-            A.HorizontalFlip(p=0.5),
-            A.VerticalFlip(p=0.2),
-            A.Rotate(limit=30, p=0.7),
-            A.RandomBrightnessContrast(p=0.3),
-            A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
-            A.GaussNoise(p=0.2),
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ])
-
-        val_test_transform = A.Compose([
-            A.Resize(224, 224),
-            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ])
-
-    print("Image augmentation transforms defined successfully.")
+    # Define transformations for validation and test sets (no augmentation, just resize and normalize).
+    val_test_transform = A.Compose([
+        A.Resize(224, 224),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    ])
+    # No transform confirmation print
 
     # --- Step 4: Create Dataset Instances and DataLoaders ---
-    print("\nCreating Dataset Instances and DataLoaders...")
+    # Create datasets and loaders
     # Create instances of our custom DermaDataset for each data split.
     train_dataset = DermaDataset(df_train, transform=train_transform, quantize_input=quantize_input)
     val_dataset = DermaDataset(df_validation, transform=val_test_transform, quantize_input=quantize_input)
@@ -235,35 +207,20 @@ def prepare_data(batch_size: int = 32, num_workers: int = None, quantize_input=F
     # Determine the number of worker processes for DataLoader.
     if num_workers is None:
         num_workers = os.cpu_count() // 2 if os.cpu_count() else 0
-        if num_workers == 0:
-            print("Warning: num_workers set to 0. Data loading will be single-threaded, which might be slow.")
+        # No warning prints
 
     # Create PyTorch DataLoaders. These will batch and shuffle the data for training.
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
-    print(f"DataLoaders created with batch_size={batch_size} and num_workers={num_workers}.")
-    print(f"Number of batches in train_loader: {len(train_loader)}")
-    print(f"Number of batches in val_loader: {len(val_loader)}")
-    print(f"Number of batches in test_loader: {len(test_loader)}")
+    # No DataLoader stats prints
 
     # --- Optional: Verify a batch from DataLoader ---
     # This block tests if the data loading pipeline works correctly by fetching one batch.
-    print("\nVerifying a sample batch from train_loader...")
-    try:
-        # Get one batch (images and labels) from the training data loader.
-        for images, labels in train_loader:
-            print(f"Shape of image batch: {images.shape}")  # Expected: [batch_size, 3, 224, 224]
-            print(f"Shape of label batch: {labels.shape}")  # Expected: [batch_size]
-            print(f"First 5 labels: {labels[:5].tolist()}")  # Convert to list for clearer output.
-            break  # Stop after getting the first batch.
-        print("Sample batch loaded successfully. Data preparation pipeline confirmed.")
-    except Exception as e:
-        print(f"Error loading sample batch from DataLoader: {e}")
-        print("Please check your DermaDataset and DataLoader setup for potential issues.")
+    # Optional verification removed to avoid extra work and printing
 
-    print("\n--- Data Preparation Complete ---")
+    # No completion print
 
     # Return the DataLoaders and the label encoder for use in other modules.
     return train_loader, val_loader, test_loader, label_encoder
