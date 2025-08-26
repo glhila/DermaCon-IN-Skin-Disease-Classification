@@ -1,0 +1,363 @@
+Index: data_preparation.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import pandas as pd\nfrom datasets import load_dataset\nfrom sklearn.preprocessing import LabelEncoder\nfrom sklearn.model_selection import train_test_split\nimport albumentations as A\nimport numpy as np\nimport os\nimport io\nfrom PIL import Image  # For image handling\nimport torch  # Import torch for PyTorch Dataset and DataLoader\nfrom torch.utils.data import Dataset, DataLoader\n\n\n# --- Custom PyTorch Dataset Class ---\n# This class defines how our dataset interacts with PyTorch.\n# It's placed here (globally) so it can be accessed by the prepare_data function.\nclass DermaDataset(Dataset):\n    def __init__(self, dataframe, transform=None, quantize_input=False, quant_bits=8):\n        \"\"\"\n        Initializes the DermaDataset.\n\n        Args:\n            dataframe (pd.DataFrame): The pandas DataFrame containing image metadata and the 'image' column.\n                                      The 'image' column is expected to hold a dictionary with 'bytes' or 'array' keys.\n            transform (albumentations.Compose, optional): The image transformation pipeline. Defaults to None.\n            quantize_input (bool, optional): Whether to quantize the input images. Defaults to False.\n            quant_bits (int, optional): Number of bits for quantization. Defaults to 8.\n        \"\"\"\n        self.dataframe = dataframe\n        self.transform = transform\n        self.quantize_input = quantize_input\n        self.quant_bits = quant_bits\n        self.max_val = 2 ** quant_bits - 1\n\n    def __len__(self):\n        \"\"\"\n        Returns the total number of samples in the dataset.\n        \"\"\"\n        return len(self.dataframe)\n\n    def __getitem__(self, idx):\n        \"\"\"\n        Retrieves an image and its corresponding label at the given index.\n\n        Args:\n            idx (int): The index of the sample to retrieve.\n\n        Returns:\n            tuple: A tuple containing the transformed image tensor and its label tensor.\n        \"\"\"\n        row = self.dataframe.iloc[idx]\n\n        # Access the 'image' dictionary from the DataFrame row.\n        image_dict = row['image']\n\n        # Load image data from bytes or a pre-existing array within the dictionary.\n        # We convert to 'RGB' to ensure consistent channel order.\n        if 'bytes' in image_dict:\n            image_bytes = image_dict['bytes']\n            image = Image.open(io.BytesIO(image_bytes)).convert('RGB')\n        elif 'array' in image_dict:\n            image = Image.fromarray(image_dict['array']).convert('RGB')\n        else:\n            # Raise an error if image data isn't in the expected 'bytes' or 'array' format.\n            raise ValueError(\n                f\"Image data not found in 'bytes' or 'array' key for index {idx}. Keys found: {image_dict.keys()}\")\n\n        # Convert the PIL Image to a NumPy array, which Albumentations expects.\n        image_np = np.array(image)\n\n        # Retrieve the numerical label for the current sample.\n        label = row['label']\n\n        # Apply transformations if a transform pipeline is provided.\n        if self.transform:\n            # Albumentations expects a NumPy array (H, W, C).\n            transformed = self.transform(image=image_np)\n            image_np = transformed['image']  # Get the transformed image from the dictionary output.\n\n        # Convert the processed NumPy array to a PyTorch tensor.\n        # Albumentations outputs HWC (Height, Width, Channels), but PyTorch expects CHW.\n        # .float() converts the tensor to float type, necessary for model input.\n        image_tensor = torch.from_numpy(image_np).permute(2, 0, 1).float()\n\n        if self.quantize_input:\n            # Quantization process\n            image_tensor = torch.clamp(image_tensor, 0, 1)  # Ensure [0,1] range\n            image_quantized = (image_tensor * self.max_val).round().byte()\n            image_tensor = image_quantized.float() / self.max_val\n\n            # Reapply normalization (important!)\n            mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)\n            std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)\n            image_tensor = (image_tensor - mean) / std\n\n        # Convert the label to a PyTorch tensor with Long data type (common for classification targets).\n        return image_tensor, torch.tensor(label, dtype=torch.long)\n\n\n# --- Main Data Preparation Function ---\n# This function encapsulates all steps required to prepare the dataset.\ndef prepare_data(batch_size: int = 32, num_workers: int = None,  quantize_input=False):\n    \"\"\"\n    Prepares the dermatological image data for deep learning training.\n\n    This function orchestrates the following key steps:\n    1. Loads and filters the raw DermaCon-IN dataset.\n    2. Encodes the 'main_class' categories into numerical labels.\n    3. Splits the data into training, validation, and test sets, ensuring label distribution is stratified.\n    4. Defines image augmentation and normalization pipelines using Albumentations.\n    5. Creates PyTorch Dataset and DataLoader instances for efficient data batching during model training.\n\n    Args:\n        batch_size (int): The number of samples per batch in the DataLoaders. Defaults to 32.\n        num_workers (int, optional): The number of subprocesses to use for data loading.\n                                     If None, it defaults to half of the available CPU cores.\n                                     Set to 0 for single-process loading (useful for debugging).\n\n    Returns:\n        tuple: A tuple containing:\n            - train_loader (torch.utils.data.DataLoader): DataLoader for the training set.\n            - val_loader (torch.utils.data.DataLoader): DataLoader for the validation set.\n            - test_loader (torch.utils.data.DataLoader): DataLoader for the test set.\n            - label_encoder (sklearn.preprocessing.LabelEncoder): The encoder used to map labels.\n    \"\"\"\n    print(\"--- Starting Data Preparation Process ---\")\n\n    # --- Step 1: Load and Filter the DermaCon-IN dataset ---\n    print(\"Loading the DermaCon-IN dataset...\")\n    try:\n        dataset = load_dataset(\"ekacare/DermaCon-IN\", split=\"train\")\n        df = dataset.to_pandas()\n        print(f\"Dataset loaded successfully. Total samples: {len(df)}\")\n    except Exception as e:\n        print(f\"An error occurred while loading the dataset: {e}\")\n        print(\"Please ensure the 'datasets' library is installed and the dataset is available.\")\n        # Re-raise the exception to indicate a critical failure in data loading.\n        raise\n\n    target_main_classes = [\"Infectious Disorders\", \"Inflammatory Disorders\"]\n    df_filtered = df[df[\"main_class\"].isin(target_main_classes)].copy()\n\n    print(f\"Filtered dataset contains {len(df_filtered)} samples for target classes: {target_main_classes}\")\n    print(\"Distribution of main classes in the filtered dataset:\")\n    print(df_filtered[\"main_class\"].value_counts())\n\n    # --- Step 2: Encode Labels and Split Dataset ---\n    print(\"\\nEncoding Labels and Splitting Dataset...\")\n    label_encoder = LabelEncoder()\n    df_filtered['label'] = label_encoder.fit_transform(df_filtered['main_class'])\n\n    # Display the mapping created by the label encoder (e.g., 'Infectious Disorders': 0).\n    print(\"Label mapping:\")\n    for i, label_name in enumerate(label_encoder.classes_):\n        print(f\"  {label_name}: {i}\")\n\n    # Define splitting ratios\n    train_ratio = 0.7\n    validation_ratio = 0.15\n    test_ratio = 0.15\n\n    # Split the dataset into a training set and a temporary set (validation + test).\n    df_train, df_temp = train_test_split(\n        df_filtered,\n        test_size=(validation_ratio + test_ratio),  # Size of the combined temporary set.\n        random_state=42,  # Ensures reproducibility of the split.\n        stratify=df_filtered['label']  # Maintains the proportion of labels in each split.\n    )\n\n    # Split the temporary set into distinct validation and test sets.\n    df_validation, df_test = train_test_split(\n        df_temp,\n        test_size=(test_ratio / (validation_ratio + test_ratio)),  # Proportion of temp set for test.\n        random_state=42,  # Ensures reproducibility.\n        stratify=df_temp['label']  # Maintains label distribution within temp split.\n    )\n\n    # Print the final sizes of each dataset split.\n    print(f\"Dataset split into:\")\n    print(f\"  Training set size: {len(df_train)}\")\n    print(f\"  Validation set size: {len(df_validation)}\")\n    print(f\"  Test set size: {len(df_test)}\")\n\n    # Print the normalized distribution of labels for each split to confirm stratification worked.\n    print(\"\\nDistribution of labels across splits (normalized):\")\n    print(f\"  Train: \\n{df_train['label'].value_counts(normalize=True)}\")\n    print(f\"  Validation: \\n{df_validation['label'].value_counts(normalize=True)}\")\n    print(f\"  Test: \\n{df_test['label'].value_counts(normalize=True)}\")\n\n    # --- Step 3: Define Image Augmentation Transforms ---\n    print(\"\\nDefining Image Augmentation Transforms...\")\n    # Define a pipeline of random transformations for the training set.\n    train_transform = A.Compose([\n        A.Resize(224, 224),  # Resize all images to a consistent input size (e.g., for CNNs).\n        A.HorizontalFlip(p=0.5),  # Randomly flip images horizontally (50% chance).\n        A.VerticalFlip(p=0.2),  # Randomly flip images vertically (20% chance).\n        A.Rotate(limit=30, p=0.7),  # Randomly rotate images up to 30 degrees.\n        A.RandomBrightnessContrast(p=0.3),  # Randomly adjust brightness and contrast.\n        A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),\n        # Small random affine transformations.\n        A.GaussNoise(p=0.2),  # Add random Gaussian noise.\n        # Normalize pixel values using ImageNet mean and std (standard for pre-trained models).\n        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),\n    ])\n\n    # Define transformations for validation and test sets (no augmentation, just resize and normalize).\n    val_test_transform = A.Compose([\n        A.Resize(224, 224),\n        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),\n    ])\n    print(\"Image augmentation transforms defined successfully.\")\n\n    # --- Step 4: Create Dataset Instances and DataLoaders ---\n    print(\"\\nCreating Dataset Instances and DataLoaders...\")\n    # Create instances of our custom DermaDataset for each data split.\n    train_dataset = DermaDataset(df_train, transform=train_transform, quantize_input=quantize_input)\n    val_dataset = DermaDataset(df_validation, transform=val_test_transform, quantize_input=quantize_input)\n    test_dataset = DermaDataset(df_test, transform=val_test_transform, quantize_input=quantize_input)\n\n    # Determine the number of worker processes for DataLoader.\n    if num_workers is None:\n        num_workers = os.cpu_count() // 2 if os.cpu_count() else 0\n        if num_workers == 0:\n            print(\"Warning: num_workers set to 0. Data loading will be single-threaded, which might be slow.\")\n\n    # Create PyTorch DataLoaders. These will batch and shuffle the data for training.\n    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)\n    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)\n    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)\n\n    print(f\"DataLoaders created with batch_size={batch_size} and num_workers={num_workers}.\")\n    print(f\"Number of batches in train_loader: {len(train_loader)}\")\n    print(f\"Number of batches in val_loader: {len(val_loader)}\")\n    print(f\"Number of batches in test_loader: {len(test_loader)}\")\n\n    # --- Optional: Verify a batch from DataLoader ---\n    # This block tests if the data loading pipeline works correctly by fetching one batch.\n    print(\"\\nVerifying a sample batch from train_loader...\")\n    try:\n        # Get one batch (images and labels) from the training data loader.\n        for images, labels in train_loader:\n            print(f\"Shape of image batch: {images.shape}\")  # Expected: [batch_size, 3, 224, 224]\n            print(f\"Shape of label batch: {labels.shape}\")  # Expected: [batch_size]\n            print(f\"First 5 labels: {labels[:5].tolist()}\")  # Convert to list for clearer output.\n            break  # Stop after getting the first batch.\n        print(\"Sample batch loaded successfully. Data preparation pipeline confirmed.\")\n    except Exception as e:\n        print(f\"Error loading sample batch from DataLoader: {e}\")\n        print(\"Please check your DermaDataset and DataLoader setup for potential issues.\")\n\n    print(\"\\n--- Data Preparation Complete ---\")\n\n    # Return the DataLoaders and the label encoder for use in other modules.\n    return train_loader, val_loader, test_loader, label_encoder\n\n\n# --- Main execution block for direct script run ---\n# This block runs only when data_preparation.py is executed directly (e.g., `python data_preparation.py`).\n# It does NOT run when this file is imported as a module into another script.\nif __name__ == \"__main__\":\n    print(\"Executing data_preparation.py directly.\")\n    # Example usage: prepare data with a batch size of 64.\n    train_loader, val_loader, test_loader, label_encoder = prepare_data(batch_size=64)\n    print(\"\\nAll DataLoaders and LabelEncoder are prepared and ready for use.\")
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/data_preparation.py b/data_preparation.py
+--- a/data_preparation.py	(revision dafe3018ba5a53675e29d7e574395cc7cb17ffbd)
++++ b/data_preparation.py	(date 1756139153028)
+@@ -15,7 +15,7 @@
+ # This class defines how our dataset interacts with PyTorch.
+ # It's placed here (globally) so it can be accessed by the prepare_data function.
+ class DermaDataset(Dataset):
+-    def __init__(self, dataframe, transform=None, quantize_input=False, quant_bits=8):
++    def __init__(self, dataframe, transform=None, quantize_input=False):
+         """
+         Initializes the DermaDataset.
+ 
+@@ -29,8 +29,6 @@
+         self.dataframe = dataframe
+         self.transform = transform
+         self.quantize_input = quantize_input
+-        self.quant_bits = quant_bits
+-        self.max_val = 2 ** quant_bits - 1
+ 
+     def __len__(self):
+         """
+@@ -85,13 +83,15 @@
+         if self.quantize_input:
+             # Quantization process
+             image_tensor = torch.clamp(image_tensor, 0, 1)  # Ensure [0,1] range
+-            image_quantized = (image_tensor * self.max_val).round().byte()
+-            image_tensor = image_quantized.float() / self.max_val
++            threshold = 0.5
++            image_binary = (image_tensor > threshold).float()
++            #image_quantized = (image_tensor * self.max_val).round().byte()
++            #image_tensor = image_quantized.float() / self.max_val
+ 
+             # Reapply normalization (important!)
+             mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+             std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+-            image_tensor = (image_tensor - mean) / std
++            image_tensor = (image_binary - mean) / std
+ 
+         # Convert the label to a PyTorch tensor with Long data type (common for classification targets).
+         return image_tensor, torch.tensor(label, dtype=torch.long)
+@@ -99,7 +99,7 @@
+ 
+ # --- Main Data Preparation Function ---
+ # This function encapsulates all steps required to prepare the dataset.
+-def prepare_data(batch_size: int = 32, num_workers: int = None,  quantize_input=False):
++def prepare_data(batch_size: int = 32, num_workers: int = None, quantize_input=False):
+     """
+     Prepares the dermatological image data for deep learning training.
+ 
+@@ -189,25 +189,40 @@
+ 
+     # --- Step 3: Define Image Augmentation Transforms ---
+     print("\nDefining Image Augmentation Transforms...")
+-    # Define a pipeline of random transformations for the training set.
+-    train_transform = A.Compose([
+-        A.Resize(224, 224),  # Resize all images to a consistent input size (e.g., for CNNs).
+-        A.HorizontalFlip(p=0.5),  # Randomly flip images horizontally (50% chance).
+-        A.VerticalFlip(p=0.2),  # Randomly flip images vertically (20% chance).
+-        A.Rotate(limit=30, p=0.7),  # Randomly rotate images up to 30 degrees.
+-        A.RandomBrightnessContrast(p=0.3),  # Randomly adjust brightness and contrast.
+-        A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
+-        # Small random affine transformations.
+-        A.GaussNoise(p=0.2),  # Add random Gaussian noise.
+-        # Normalize pixel values using ImageNet mean and std (standard for pre-trained models).
+-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+-    ])
++
++    if quantize_input:
++        # When quantizing inside DermaDataset, skip Albumentations Normalize here
++        train_transform = A.Compose([
++            A.Resize(224, 224),
++            A.HorizontalFlip(p=0.5),
++            A.VerticalFlip(p=0.2),
++            A.Rotate(limit=30, p=0.7),
++            A.RandomBrightnessContrast(p=0.3),
++            A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
++            A.GaussNoise(p=0.2),
++        ])
++
++        val_test_transform = A.Compose([
++            A.Resize(224, 224),
++        ])
++    else:
++        # Original behavior: Normalize with ImageNet stats in Albumentations
++        train_transform = A.Compose([
++            A.Resize(224, 224),
++            A.HorizontalFlip(p=0.5),
++            A.VerticalFlip(p=0.2),
++            A.Rotate(limit=30, p=0.7),
++            A.RandomBrightnessContrast(p=0.3),
++            A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
++            A.GaussNoise(p=0.2),
++            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
++        ])
+ 
+-    # Define transformations for validation and test sets (no augmentation, just resize and normalize).
+-    val_test_transform = A.Compose([
+-        A.Resize(224, 224),
+-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+-    ])
++        val_test_transform = A.Compose([
++            A.Resize(224, 224),
++            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
++        ])
++
+     print("Image augmentation transforms defined successfully.")
+ 
+     # --- Step 4: Create Dataset Instances and DataLoaders ---
+@@ -261,4 +276,4 @@
+     print("Executing data_preparation.py directly.")
+     # Example usage: prepare data with a batch size of 64.
+     train_loader, val_loader, test_loader, label_encoder = prepare_data(batch_size=64)
+-    print("\nAll DataLoaders and LabelEncoder are prepared and ready for use.")
+\ No newline at end of file
++    print("\nAll DataLoaders and LabelEncoder are prepared and ready for use.")
+Index: .idea/AdvancedComputerArchitectures.iml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<module type=\"PYTHON_MODULE\" version=\"4\">\n  <component name=\"NewModuleRootManager\">\n    <content url=\"file://$MODULE_DIR$\">\n      <excludeFolder url=\"file://$MODULE_DIR$/.venv\" />\n      <excludeFolder url=\"file://$MODULE_DIR$/VE\" />\n    </content>\n    <orderEntry type=\"inheritedJdk\" />\n    <orderEntry type=\"sourceFolder\" forTests=\"false\" />\n  </component>\n</module>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/AdvancedComputerArchitectures.iml b/.idea/AdvancedComputerArchitectures.iml
+--- a/.idea/AdvancedComputerArchitectures.iml	(revision dafe3018ba5a53675e29d7e574395cc7cb17ffbd)
++++ b/.idea/AdvancedComputerArchitectures.iml	(date 1753876842475)
+@@ -5,7 +5,7 @@
+       <excludeFolder url="file://$MODULE_DIR$/.venv" />
+       <excludeFolder url="file://$MODULE_DIR$/VE" />
+     </content>
+-    <orderEntry type="inheritedJdk" />
++    <orderEntry type="jdk" jdkName="Python 3.12 (AdvancedComputerArchitectures)" jdkType="Python SDK" />
+     <orderEntry type="sourceFolder" forTests="false" />
+   </component>
+ </module>
+\ No newline at end of file
+Index: .idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project version=\"4\">\n  <component name=\"AutoImportSettings\">\n    <option name=\"autoReloadType\" value=\"SELECTIVE\" />\n  </component>\n  <component name=\"ChangeListManager\">\n    <list default=\"true\" id=\"76d599b7-3b0b-46cb-9767-7328987164f9\" name=\"Changes\" comment=\"\">\n      <change beforePath=\"$PROJECT_DIR$/.idea/workspace.xml\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/.idea/workspace.xml\" afterDir=\"false\" />\n    </list>\n    <option name=\"SHOW_DIALOG\" value=\"false\" />\n    <option name=\"HIGHLIGHT_CONFLICTS\" value=\"true\" />\n    <option name=\"HIGHLIGHT_NON_ACTIVE_CHANGELIST\" value=\"false\" />\n    <option name=\"LAST_RESOLUTION\" value=\"IGNORE\" />\n  </component>\n  <component name=\"FileTemplateManagerImpl\">\n    <option name=\"RECENT_TEMPLATES\">\n      <list>\n        <option value=\"Python Script\" />\n      </list>\n    </option>\n  </component>\n  <component name=\"Git.Settings\">\n    <option name=\"RECENT_GIT_ROOT_PATH\" value=\"$PROJECT_DIR$\" />\n  </component>\n  <component name=\"MarkdownSettingsMigration\">\n    <option name=\"stateVersion\" value=\"1\" />\n  </component>\n  <component name=\"ProjectColorInfo\">{\n  &quot;associatedIndex&quot;: 0\n}</component>\n  <component name=\"ProjectId\" id=\"2zENFeyrzYHtPIEDgzO0ztUOkuC\" />\n  <component name=\"ProjectViewState\">\n    <option name=\"hideEmptyMiddlePackages\" value=\"true\" />\n    <option name=\"showLibraryContents\" value=\"true\" />\n  </component>\n  <component name=\"PropertiesComponent\">{\n  &quot;keyToString&quot;: {\n    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,\n    &quot;Python.data_preparation.executor&quot;: &quot;Run&quot;,\n    &quot;Python.helper.executor&quot;: &quot;Run&quot;,\n    &quot;Python.project.executor&quot;: &quot;Run&quot;,\n    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,\n    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,\n    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,\n    &quot;git-widget-placeholder&quot;: &quot;master&quot;\n  }\n}</component>\n  <component name=\"RunManager\" selected=\"Python.model_test\">\n    <configuration name=\"continue_training\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"AdvancedComputerArchitectures\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$\" />\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/continue_training.py\" />\n      <option name=\"PARAMETERS\" value=\"\" />\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\n      <option name=\"MODULE_MODE\" value=\"false\" />\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\n      <option name=\"INPUT_FILE\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"deep_finetune\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"AdvancedComputerArchitectures\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$\" />\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/deep_finetune.py\" />\n      <option name=\"PARAMETERS\" value=\"\" />\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\n      <option name=\"MODULE_MODE\" value=\"false\" />\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\n      <option name=\"INPUT_FILE\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"model_test\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"AdvancedComputerArchitectures\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$\" />\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/model_test.py\" />\n      <option name=\"PARAMETERS\" value=\"\" />\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\n      <option name=\"MODULE_MODE\" value=\"false\" />\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\n      <option name=\"INPUT_FILE\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"model_training\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"AdvancedComputerArchitectures\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"C:\\Users\\hgkhe\\DermaCon-IN-Skin-Disease-Classification\\VE\\Scripts\\python.exe\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$\" />\n      <option name=\"IS_MODULE_SDK\" value=\"false\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/model_training.py\" />\n      <option name=\"PARAMETERS\" value=\"\" />\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\n      <option name=\"MODULE_MODE\" value=\"false\" />\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\n      <option name=\"INPUT_FILE\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"weighted_finetune\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"AdvancedComputerArchitectures\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$\" />\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/weighted_finetune.py\" />\n      <option name=\"PARAMETERS\" value=\"\" />\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\n      <option name=\"MODULE_MODE\" value=\"false\" />\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\n      <option name=\"INPUT_FILE\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n    <recent_temporary>\n      <list>\n        <item itemvalue=\"Python.model_test\" />\n        <item itemvalue=\"Python.weighted_finetune\" />\n        <item itemvalue=\"Python.deep_finetune\" />\n        <item itemvalue=\"Python.continue_training\" />\n        <item itemvalue=\"Python.model_training\" />\n      </list>\n    </recent_temporary>\n  </component>\n  <component name=\"SharedIndexes\">\n    <attachedChunks>\n      <set>\n        <option value=\"bundled-python-sdk-e0ed3721d81e-36ea0e71a18c-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.25410.159\" />\n      </set>\n    </attachedChunks>\n  </component>\n  <component name=\"SpellCheckerSettings\" RuntimeDictionaries=\"0\" Folders=\"0\" CustomDictionaries=\"0\" DefaultDictionary=\"application-level\" UseSingleDictionary=\"true\" transferred=\"true\" />\n  <component name=\"TaskManager\">\n    <task active=\"true\" id=\"Default\" summary=\"Default task\">\n      <changelist id=\"76d599b7-3b0b-46cb-9767-7328987164f9\" name=\"Changes\" comment=\"\" />\n      <created>1751292170800</created>\n      <option name=\"number\" value=\"Default\" />\n      <option name=\"presentableId\" value=\"Default\" />\n      <updated>1751292170800</updated>\n    </task>\n    <servers />\n  </component>\n  <component name=\"Vcs.Log.Tabs.Properties\">\n    <option name=\"TAB_STATES\">\n      <map>\n        <entry key=\"MAIN\">\n          <value>\n            <State />\n          </value>\n        </entry>\n      </map>\n    </option>\n  </component>\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/workspace.xml b/.idea/workspace.xml
+--- a/.idea/workspace.xml	(revision dafe3018ba5a53675e29d7e574395cc7cb17ffbd)
++++ b/.idea/workspace.xml	(date 1756196492260)
+@@ -4,8 +4,13 @@
+     <option name="autoReloadType" value="SELECTIVE" />
+   </component>
+   <component name="ChangeListManager">
+-    <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="">
++    <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="Add a quantification option">
++      <change beforePath="$PROJECT_DIR$/.idea/AdvancedComputerArchitectures.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/AdvancedComputerArchitectures.iml" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/data_preparation.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_preparation.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/model_training.py" beforeDir="false" afterPath="$PROJECT_DIR$/model_training.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/train_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/train_model.py" afterDir="false" />
+     </list>
+     <option name="SHOW_DIALOG" value="false" />
+     <option name="HIGHLIGHT_CONFLICTS" value="true" />
+@@ -22,6 +27,18 @@
+   <component name="Git.Settings">
+     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+   </component>
++  <component name="GitHubPullRequestSearchHistory">{
++  &quot;lastFilter&quot;: {
++    &quot;state&quot;: &quot;OPEN&quot;,
++    &quot;assignee&quot;: &quot;glhila&quot;
++  }
++}</component>
++  <component name="GithubPullRequestsUISettings">{
++  &quot;selectedUrlAndAccountId&quot;: {
++    &quot;url&quot;: &quot;git@github.com:glhila/DermaCon-IN-Skin-Disease-Classification.git&quot;,
++    &quot;accountId&quot;: &quot;c6589eaf-f42c-4c58-aad7-fe3a02461b94&quot;
++  }
++}</component>
+   <component name="MarkdownSettingsMigration">
+     <option name="stateVersion" value="1" />
+   </component>
+@@ -33,21 +50,24 @@
+     <option name="hideEmptyMiddlePackages" value="true" />
+     <option name="showLibraryContents" value="true" />
+   </component>
+-  <component name="PropertiesComponent">{
+-  &quot;keyToString&quot;: {
+-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+-    &quot;Python.data_preparation.executor&quot;: &quot;Run&quot;,
+-    &quot;Python.helper.executor&quot;: &quot;Run&quot;,
+-    &quot;Python.project.executor&quot;: &quot;Run&quot;,
+-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+-    &quot;git-widget-placeholder&quot;: &quot;master&quot;
++  <component name="PropertiesComponent"><![CDATA[{
++  "keyToString": {
++    "ModuleVcsDetector.initialDetectionPerformed": "true",
++    "Python.data_preparation.executor": "Run",
++    "Python.helper.executor": "Run",
++    "Python.model_test.executor": "Run",
++    "Python.project.executor": "Run",
++    "RunOnceActivity.ShowReadmeOnStart": "true",
++    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
++    "RunOnceActivity.git.unshallow": "true",
++    "git-widget-placeholder": "master",
++    "settings.editor.selected.configurable": "vcs.Git"
+   }
+-}</component>
+-  <component name="RunManager" selected="Python.model_test">
++}]]></component>
++  <component name="RunManager" selected="Python.data_preparation">
+     <configuration name="continue_training" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+       <module name="AdvancedComputerArchitectures" />
++      <option name="ENV_FILES" value="" />
+       <option name="INTERPRETER_OPTIONS" value="" />
+       <option name="PARENT_ENVS" value="true" />
+       <envs>
+@@ -67,8 +87,9 @@
+       <option name="INPUT_FILE" value="" />
+       <method v="2" />
+     </configuration>
+-    <configuration name="deep_finetune" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
++    <configuration name="data_preparation" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+       <module name="AdvancedComputerArchitectures" />
++      <option name="ENV_FILES" value="" />
+       <option name="INTERPRETER_OPTIONS" value="" />
+       <option name="PARENT_ENVS" value="true" />
+       <envs>
+@@ -79,7 +100,7 @@
+       <option name="IS_MODULE_SDK" value="true" />
+       <option name="ADD_CONTENT_ROOTS" value="true" />
+       <option name="ADD_SOURCE_ROOTS" value="true" />
+-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/deep_finetune.py" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/data_preparation.py" />
+       <option name="PARAMETERS" value="" />
+       <option name="SHOW_COMMAND_LINE" value="false" />
+       <option name="EMULATE_TERMINAL" value="false" />
+@@ -88,8 +109,9 @@
+       <option name="INPUT_FILE" value="" />
+       <method v="2" />
+     </configuration>
+-    <configuration name="model_test" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
++    <configuration name="deep_finetune" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+       <module name="AdvancedComputerArchitectures" />
++      <option name="ENV_FILES" value="" />
+       <option name="INTERPRETER_OPTIONS" value="" />
+       <option name="PARENT_ENVS" value="true" />
+       <envs>
+@@ -100,7 +122,7 @@
+       <option name="IS_MODULE_SDK" value="true" />
+       <option name="ADD_CONTENT_ROOTS" value="true" />
+       <option name="ADD_SOURCE_ROOTS" value="true" />
+-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/model_test.py" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/deep_finetune.py" />
+       <option name="PARAMETERS" value="" />
+       <option name="SHOW_COMMAND_LINE" value="false" />
+       <option name="EMULATE_TERMINAL" value="false" />
+@@ -109,19 +131,20 @@
+       <option name="INPUT_FILE" value="" />
+       <method v="2" />
+     </configuration>
+-    <configuration name="model_training" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
++    <configuration name="model_test" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+       <module name="AdvancedComputerArchitectures" />
++      <option name="ENV_FILES" value="" />
+       <option name="INTERPRETER_OPTIONS" value="" />
+       <option name="PARENT_ENVS" value="true" />
+       <envs>
+         <env name="PYTHONUNBUFFERED" value="1" />
+       </envs>
+-      <option name="SDK_HOME" value="C:\Users\hgkhe\DermaCon-IN-Skin-Disease-Classification\VE\Scripts\python.exe" />
++      <option name="SDK_HOME" value="" />
+       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+-      <option name="IS_MODULE_SDK" value="false" />
++      <option name="IS_MODULE_SDK" value="true" />
+       <option name="ADD_CONTENT_ROOTS" value="true" />
+       <option name="ADD_SOURCE_ROOTS" value="true" />
+-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/model_training.py" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/model_test.py" />
+       <option name="PARAMETERS" value="" />
+       <option name="SHOW_COMMAND_LINE" value="false" />
+       <option name="EMULATE_TERMINAL" value="false" />
+@@ -132,6 +155,7 @@
+     </configuration>
+     <configuration name="weighted_finetune" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+       <module name="AdvancedComputerArchitectures" />
++      <option name="ENV_FILES" value="" />
+       <option name="INTERPRETER_OPTIONS" value="" />
+       <option name="PARENT_ENVS" value="true" />
+       <envs>
+@@ -153,18 +177,18 @@
+     </configuration>
+     <recent_temporary>
+       <list>
++        <item itemvalue="Python.data_preparation" />
+         <item itemvalue="Python.model_test" />
+         <item itemvalue="Python.weighted_finetune" />
+         <item itemvalue="Python.deep_finetune" />
+         <item itemvalue="Python.continue_training" />
+-        <item itemvalue="Python.model_training" />
+       </list>
+     </recent_temporary>
+   </component>
+   <component name="SharedIndexes">
+     <attachedChunks>
+       <set>
+-        <option value="bundled-python-sdk-e0ed3721d81e-36ea0e71a18c-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.25410.159" />
++        <option value="bundled-python-sdk-41e8cd69c857-64d779b69b7a-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.26927.90" />
+       </set>
+     </attachedChunks>
+   </component>
+@@ -177,6 +201,15 @@
+       <option name="presentableId" value="Default" />
+       <updated>1751292170800</updated>
+     </task>
++    <task id="LOCAL-00001" summary="Add a quantification option">
++      <option name="closed" value="true" />
++      <created>1753984868556</created>
++      <option name="number" value="00001" />
++      <option name="presentableId" value="LOCAL-00001" />
++      <option name="project" value="LOCAL" />
++      <updated>1753984868556</updated>
++    </task>
++    <option name="localTasksCounter" value="2" />
+     <servers />
+   </component>
+   <component name="Vcs.Log.Tabs.Properties">
+@@ -190,4 +223,8 @@
+       </map>
+     </option>
+   </component>
++  <component name="VcsManagerConfiguration">
++    <MESSAGE value="Add a quantification option" />
++    <option name="LAST_COMMIT_MESSAGE" value="Add a quantification option" />
++  </component>
+ </project>
+\ No newline at end of file
+Index: .idea/misc.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project version=\"4\">\n  <component name=\"ProjectRootManager\" version=\"2\" project-jdk-name=\"Python 3.9 (DermaCon-IN-Skin-Disease-Classification)\" project-jdk-type=\"Python SDK\" />\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/misc.xml b/.idea/misc.xml
+--- a/.idea/misc.xml	(revision dafe3018ba5a53675e29d7e574395cc7cb17ffbd)
++++ b/.idea/misc.xml	(date 1753876849338)
+@@ -1,4 +1,7 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <project version="4">
+-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.9 (DermaCon-IN-Skin-Disease-Classification)" project-jdk-type="Python SDK" />
++  <component name="Black">
++    <option name="sdkName" value="Python 3.12 (AdvancedComputerArchitectures)" />
++  </component>
++  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.12 (AdvancedComputerArchitectures)" project-jdk-type="Python SDK" />
+ </project>
+\ No newline at end of file
