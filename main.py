@@ -20,7 +20,7 @@ def run_models(mode):
         case 'A':
             print("Running Model A: Non-quantized data + Non-quantized model")
             train_loader, val_loader, test_loader, _ = prepare_data(batch_size=32, num_workers=0, quantize_input=False)
-            train_model(data_is_quantized=False, stage_epochs=(6,20,24), early_stop_patience=6, train_loader=train_loader, val_loader=val_loader)
+            train_model(data_is_quantized=False, stage_epochs=(3,10,12), early_stop_patience=5, train_loader=train_loader, val_loader=val_loader)
             evaluate_saved_model("mobilenetv2_best_not_quantized.pth", mode="fp32", test_loader=test_loader)
 
         case 'B':
