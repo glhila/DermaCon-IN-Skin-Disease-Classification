@@ -245,7 +245,7 @@ def train_model_quantized(
             # Save best-by-accuracy across all stages
             if val_acc > best_val_acc_global:
                 best_val_acc_global = val_acc
-                best_path = "mobilenetv2_best_all_quantized.pth" if data_is_quantized else "mobilenetv2_best_model_quantized.pth"
+                best_path = "mobilenetv2_best_fully_quantized.pth" if data_is_quantized else "mobilenetv2_best_model_quantized.pth"
                 torch.save(model.state_dict(), best_path)
                 print(f"New best validation accuracy. Saved: {best_path}")
 
