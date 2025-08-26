@@ -4,10 +4,13 @@ from torchvision import models
 from data_preparation import prepare_data
 from sklearn.metrics import classification_report, accuracy_score
 
+
 def evaluate(model, dataloader, device, name="Validation"):
     model.eval()
     all_preds = []
     all_labels = []
+    total_loss = 0.0
+    total_samples = 0
 
     with torch.no_grad():
         for inputs, labels in dataloader:
@@ -18,6 +21,15 @@ def evaluate(model, dataloader, device, name="Validation"):
             all_preds.extend(predicted.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
 
+            # Accumulate loss over the entire dataloader
+            batch_loss = nn.CrossEntropyLoss()(outputs, labels)
+            batch_size = labels.size(0)
+            total_loss += batch_loss.item() * batch_size
+            total_samples += batch_size
+
+    # Average loss over all samples
+    avg_loss = total_loss / max(total_samples, 1)
+
     # Accuracy
     acc = accuracy_score(all_labels, all_preds)
     print(f"\n✅ {name} Accuracy: {acc:.4f} ({sum([p == l for p, l in zip(all_preds, all_labels)])}/{len(all_labels)} correct)")
@@ -26,7 +38,7 @@ def evaluate(model, dataloader, device, name="Validation"):
     print("\n📋 Detailed classification report:")
     print(classification_report(all_labels, all_preds, target_names=["Infectious", "Inflammatory"]))
 
-    return acc
+    return acc, avg_loss
 
 if __name__ == "__main__":
     print("🚀 Starting validation...")
