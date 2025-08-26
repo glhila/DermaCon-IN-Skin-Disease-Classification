@@ -4,14 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/AdvancedComputerArchitectures.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/AdvancedComputerArchitectures.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data_preparation.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_preparation.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model_validation.py" beforeDir="false" afterPath="$PROJECT_DIR$/model_validation.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/train_model_NQ.py" beforeDir="false" afterPath="$PROJECT_DIR$/train_model_NQ.py" afterDir="false" />
-    </list>
+    <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="training with STE" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -34,6 +27,9 @@
   &quot;associatedIndex&quot;: 0
 }</component>
   <component name="ProjectId" id="2zENFeyrzYHtPIEDgzO0ztUOkuC" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -182,6 +178,14 @@
       <option name="presentableId" value="Default" />
       <updated>1751292170800</updated>
     </task>
+    <task id="LOCAL-00001" summary="training with STE">
+      <created>1756218692340</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1756218692340</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -194,5 +198,9 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="training with STE" />
+    <option name="LAST_COMMIT_MESSAGE" value="training with STE" />
   </component>
 </project>
