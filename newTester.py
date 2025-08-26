@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torchvision import models
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
+from torch.utils.data import DataLoader
 #from data_preparation import prepare_data
 
 # QAT/FX imports (only needed for qat_state / int8_state modes)
@@ -62,7 +63,7 @@ def load_model_for_eval(model_path: str, mode: str, device: torch.device, num_cl
     raise ValueError("Unknown mode")
 
 
-def evaluate_saved_model(model_path: str, mode: str = "fp32", name: str = "Test", test_loader :Any = None) -> None:
+def evaluate_saved_model(model_path: str, mode: str = "fp32", name: str = "Test", test_loader :DataLoader = None) -> None:
     """High-level helper: build test loader, load model from path, and evaluate."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = load_model_for_eval(model_path, mode, device)

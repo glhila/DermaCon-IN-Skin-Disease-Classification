@@ -6,6 +6,7 @@ import time
 from data_preparation import prepare_data
 from model_validation import evaluate
 import copy
+from torch.utils.data import DataLoader
 
 YELLOW = "\033[93m"
 RED = "\033[91m"
@@ -17,7 +18,8 @@ def train_model(
     stage_epochs: tuple[int, int, int] = (2, 10, 12),
     early_stop_patience: int = 5,
     use_lr_on_plateau: bool = True,
-    train_loader, val_loader
+    train_loader: DataLoader = None,
+    val_loader: DataLoader = None
 ):
     """
     Progressive fine-tuning of MobileNetV2 in 3 stages:
