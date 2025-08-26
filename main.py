@@ -9,7 +9,7 @@
 
 from data_preparation import prepare_data
 from train_model_NQ import train_model
-from train_model_Q import train_model as train_model_quantized
+from New_training_STE import train_model_quantized
 from newTester import evaluate_saved_model
 
 def run_models(mode):

@@ -6,7 +6,6 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import models
 from torch.utils.data import DataLoader
-from data_preparation import prepare_data
 
 
 # ---------------------------
@@ -116,11 +115,6 @@ def train_model_quantized(
     Progressive fine-tuning in 3 stages with a BNN feature extractor (classifier remains float).
     Includes per-epoch validation (ValLoss/ValAcc), optional ReduceLROnPlateau, and early stopping per stage.
     """
-
-    # Data + device
-    # (If loaders are not provided, prepare them here)
-    if train_loader is None or val_loader is None:
-        train_loader, val_loader, test_loader, _ = prepare_data()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
