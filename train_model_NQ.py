@@ -10,7 +10,7 @@ RED = "\033[91m"
 ENDC = "\033[0m"
 
 
-def train_model():
+def train_model(data_is_quantized=False):
     """
     Progressive fine-tuning of MobileNetV2 in 3 stages:
     1. Train classifier only
@@ -21,7 +21,7 @@ def train_model():
     # -------------------
     # Data + device setup
     # -------------------
-    train_loader, val_loader, test_loader, _ = prepare_data()
+    train_loader, val_loader, test_loader, _ = prepare_data(quantize_input=data_is_quantized)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"{YELLOW}Using device: {device}{ENDC}")
 
@@ -127,8 +127,12 @@ def train_model():
     # -------------------
     # Save final model
     # -------------------
-    torch.save(mobilenet.state_dict(), "mobilenetv2_data_quantized.pth")
-    print(f"{YELLOW}📦 Final model saved as mobilenetv2_data_quantized.pth{ENDC}")
+    if data_is_quantized:
+        torch.save(mobilenet.state_dict(), "mobilenetv2_data_quantized.pth")
+        print(f"{YELLOW}📦 Final model saved as mobilenetv2_data_quantized.pth{ENDC}")
+    else:
+        torch.save(mobilenet.state_dict(), "mobilenetv2_NOT_quantized.pth")
+        print(f"{YELLOW}📦 Final model saved as mobilenetv2_NOT_quantized.pth{ENDC}")
 
 if __name__ == "__main__":
     train_model()

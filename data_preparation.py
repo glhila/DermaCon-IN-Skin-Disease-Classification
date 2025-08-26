@@ -83,13 +83,15 @@ class DermaDataset(Dataset):
         if self.quantize_input:
             # Quantization process
             image_tensor = torch.clamp(image_tensor, 0, 1)  # Ensure [0,1] range
-            image_quantized = (image_tensor * self.max_val).round().byte()
-            image_tensor = image_quantized.float() / self.max_val
+            threshold = 0.5
+            image_binary = (image_tensor > threshold).float()
+            #image_quantized = (image_tensor * self.max_val).round().byte()
+            #image_tensor = image_quantized.float() / self.max_val
 
             # Reapply normalization (important!)
             mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
             std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
-            image_tensor = (image_tensor - mean) / std
+            image_tensor = (image_binary - mean) / std
 
         # Convert the label to a PyTorch tensor with Long data type (common for classification targets).
         return image_tensor, torch.tensor(label, dtype=torch.long)
@@ -275,4 +277,3 @@ if __name__ == "__main__":
     # Example usage: prepare data with a batch size of 64.
     train_loader, val_loader, test_loader, label_encoder = prepare_data(batch_size=64)
     print("\nAll DataLoaders and LabelEncoder are prepared and ready for use.")
-      
