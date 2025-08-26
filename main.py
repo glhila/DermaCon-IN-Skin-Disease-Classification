@@ -1,9 +1,9 @@
-# file: four_models_baseline.py
-# ------------------------------------------------------------
-# Baseline for 4 models:
+# 3 Baseline models:
 # A: Non-quantized data + Non-quantized model
 # B: Quantized data     + Non-quantized model
 # C: Non-quantized data + Quantized model
+# ------------------------------------------------------------
+# 1 Final model:
 # D: Quantized data     + Quantized model
 # ------------------------------------------------------------
 import torch
@@ -12,16 +12,21 @@ import torch.optim as optim
 from torchvision import models
 import time
 from data_preparation import prepare_data
-import train_model_NQ
 from train_model_NQ import train_model
+from newTester import evaluate_saved_model
 
 def run_models(mode):
     if mode == 'A':
         print("Running Model A: Non-quantized data + Non-quantized model")
-        train_model(data_is_quantized=False)
+        train_loader, val_loader, test_loader, _ = prepare_data(batch_size=32, num_workers=0, quantize_input= False)
+        train_model(data_is_quantized=False, stage_epochs=(6,20,24), early_stop_patience=6, train_loader=train_loader, val_loader=val_loader)
+        evaluate_saved_model("mobilenetv2_best_not_quantized.pth", mode="fp32", test_loader=test_loader)
+
     elif mode == 'B':
         print("Running Model B: Quantized data + Non-quantized model")
-        train_model(data_is_quantized=True)
+        train_loader, val_loader, test_loader, _ = prepare_data(batch_size=32, num_workers=0, quantize_input= True)
+        train_model(data_is_quantized=True, stage_epochs=(6,20,24), early_stop_patience=6, train_loader=train_loader, val_loader=val_loader)
+        evaluate_saved_model("mobilenetv2_best_data_quantized.pth", mode="fp32", test_loader=test_loader)
 
     #elif mode == 'C':
     #    print("Running Model C: Non-quantized data + Quantized model")
@@ -33,7 +38,8 @@ def run_models(mode):
     #    print("Invalid mode. Please choose from 'A', 'B', 'C', or 'D'.")
 
 if __name__ == "__main__":
-    #run_models('A')
-    run_models('B')
+
+    run_models('A')
+    #run_models('B')
     #run_models('C')
     #run_models('D')
