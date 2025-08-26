@@ -242,10 +242,10 @@ def train_model_quantized(
                     print("Early stopping triggered for this stage.")
                     break
 
-            # Save best (global) by ValAcc with your filenames rule
+            # Save best-by-accuracy across all stages
             if val_acc > best_val_acc_global:
                 best_val_acc_global = val_acc
-                best_path = "mobilenetv2_all_quantize.pth" if data_is_quantized else "mobilenetv2_model_quantize.pth"
+                best_path = "mobilenetv2_best_all_quantized.pth" if data_is_quantized else "mobilenetv2_best_model_quantized.pth"
                 torch.save(model.state_dict(), best_path)
                 print(f"New best validation accuracy. Saved: {best_path}")
 
@@ -261,11 +261,6 @@ def train_model_quantized(
 
     total_time = time.time() - global_start
     print(f"\nTraining complete in {total_time/60:.1f} minutes total.")
-
-    # Optional: also save the final (last) state if you want
-    final_path = "mobilenetv2_all_quantize.pth" if data_is_quantized else "mobilenetv2_model_quantize.pth"
-    torch.save(mobilenet.state_dict(), final_path)
-    print(f"Final model saved as {final_path}")
 
 
 if __name__ == "__main__":
