@@ -4,8 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="added tester for C and D">
+    <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="model C done">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -208,7 +209,14 @@
       <option name="project" value="LOCAL" />
       <updated>1756241370810</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="model C done">
+      <created>1756323904831</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1756323904831</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -225,6 +233,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="training with STE" />
     <MESSAGE value="added tester for C and D" />
-    <option name="LAST_COMMIT_MESSAGE" value="added tester for C and D" />
+    <MESSAGE value="model C done" />
+    <option name="LAST_COMMIT_MESSAGE" value="model C done" />
   </component>
 </project>

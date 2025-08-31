@@ -45,5 +45,5 @@ if __name__ == "__main__":
 
     #run_models('A')
     #run_models('B')
-    run_models('C')
-    #run_models('D')
+    #run_models('C')
+    run_models('D')
