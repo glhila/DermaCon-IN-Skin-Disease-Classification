@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torchvision import models
- , accuracy_score, classification_report
+from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 from torch.utils.data import DataLoader
 from New_training_STE import convert_mobilenetv2_to_bnn
 
@@ -15,13 +15,24 @@ from torch.ao.quantization.quantize_fx import prepare_qat_fx, convert_fx
 def load_model_for_eval(model_path: str, mode: str, device: torch.device, num_classes: int = 2) -> nn.Module:
     """Load a model given a saved artifact and mode.
 
-    Supported modes:
-      - "fp32": state_dict of a standard FP32 MobileNetV2 classifier
-      - "qat_state": QAT state_dict before convert_fx
-      - "int8_module": a fully converted/int8 serialized module (.pt)
-      - "int8_state": converted INT8 state_dict to be loaded into a rebuilt quantized graph
-      - "dynamic_linear": dynamic quantized Linear-only model with FP32 weights
-    """
+
+Supported modes:
+- "fp32": state_dict of a standard FP32 MobileNetV2 classifier
+- "bnn_state": state_dict of a MobileNetV2 converted to BNN (binary convs)
+- "qat_state": QAT state_dict before convert_fx
+- "int8_module": a fully converted/int8 serialized module (.pt)
+- "int8_state": converted INT8 state_dict to be loaded into a rebuilt quantized graph
+- "dynamic_linear": dynamic quantized Linear-only model with FP32 weights
+
+
+Notes
+-----
+• For "qat_state" and "int8_state" we must re-create the *exact* FX graph
+(via prepare_qat_fx) with the same input shape used during training.
+• "int8_module" expects you saved the *entire module* (e.g., torch.save(model)).
+• "bnn_state" requires your convert_mobilenetv2_to_bnn() to match training.
+• "dynamic_linear" is post-training dynamic quant (Linear-only) — good baseline.
+"""
     if mode == "fp32":
         model = build_fp32_model(num_classes=num_classes)
         sd = torch.load(model_path, map_location=device)
@@ -36,21 +47,24 @@ def load_model_for_eval(model_path: str, mode: str, device: torch.device, num_cl
         return model.to(device).eval()
 
     if mode == "qat_state":
-        torch.backends.quantized.engine = "fbgemm"
+        # Rebuild a *QAT-ready* graph then load the QAT state_dict
+        torch.backends.quantized.engine = "fbgemm" # x86; use "qnnpack" on ARM/mobile
         model = build_fp32_model(num_classes=num_classes).to(device).train()
-        example_input = torch.randn(1, 3, 224, 224).to(device)
+        example_input = torch.randn(1, 3, 224, 224).to(device) # must match training input size
         qconfig = get_default_qat_qconfig(torch.backends.quantized.engine)
         qconfig_mapping = QConfigMapping().set_global(qconfig)
         model = prepare_qat_fx(model, qconfig_mapping, example_inputs=example_input)
-        sd = torch.load(model_path, map_location="cpu")
+        sd = torch.load(model_path, map_location="cpu") # safer when keys live on CPU
         model.load_state_dict(sd)
         return model.to(device).eval()
 
     if mode == "int8_module":
+        # Load a fully converted INT8 module (not just state_dict)
         model = torch.load(model_path, map_location=device, weights_only=False)
         return model.eval()
 
     if mode == "int8_state":
+
         torch.backends.quantized.engine = "fbgemm"
         model = build_fp32_model(num_classes=num_classes).to(device).train()
         example_input = torch.randn(1, 3, 224, 224).to(device)
@@ -63,6 +77,7 @@ def load_model_for_eval(model_path: str, mode: str, device: torch.device, num_cl
         return model
 
     if mode == "dynamic_linear":
+        # Post-training dynamic quantization for Linear layers only (no Conv quant)
         model = build_fp32_model(num_classes=num_classes)
         model = torch.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
         sd = torch.load(model_path, map_location=device)
@@ -73,13 +88,38 @@ def load_model_for_eval(model_path: str, mode: str, device: torch.device, num_cl
 
 
 def evaluate_saved_model(model_path: str, mode: str = "fp32", name: str = "Test", test_loader :DataLoader = None) -> None:
-    """High-level helper: build test loader, load model from path, and evaluate."""
+    """"High-level helper: (optionally) build test loader, load model from path, and evaluate.
+
+
+    Parameters
+    ----------
+    model_path : str
+    Path to weights/module to load.
+    mode : str
+    One of {"fp32", "bnn_state", "qat_state", "int8_module", "int8_state", "dynamic_linear"}.
+    name : str
+    Label for printed metrics.
+    test_loader : DataLoader | None
+    Dataloader yielding (images, labels). If None, this function will raise — supply your own
+    loader or plug your data prep here.
+    class_names : list[str] | None
+    Names for classes in the classification report. If None, generic numeric labels are used.
+    """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = load_model_for_eval(model_path, mode, device)
     evaluate(model, test_loader, device, name=name)
 
 
 def evaluate(model, dataloader, device, name="Test"):
+    """Run inference over a dataloader and print accuracy, confusion matrix, and a report.
+
+
+    Notes
+    -----
+    • Uses torch.inference_mode() for speed and to avoid autograd overhead.
+    • Accumulates predictions/labels on CPU lists to control memory.
+    • classification_report supports label names if you pass class_names.
+    """
     model.eval()
     all_preds, all_labels = [], []
     with torch.inference_mode():
@@ -92,14 +132,21 @@ def evaluate(model, dataloader, device, name="Test"):
 
     acc = accuracy_score(all_labels, all_preds)
     cm = confusion_matrix(all_labels, all_preds)
-    print(f"\n✅ {name} Accuracy: {acc:.4f}")
-    print(f"📊 {name} Confusion Matrix:\n{cm}")
-    print("\n📋 Detailed classification report:")
+    print(f"\n {name} Accuracy: {acc:.4f}")
+    print(f" {name} Confusion Matrix:\n{cm}")
+    print("\n Detailed classification report:")
     print(classification_report(all_labels, all_preds, target_names=["Infectious", "Inflammatory"]))
     return acc, cm
 
 
 def build_fp32_model(num_classes=2):
+    """Construct a MobileNetV2 backbone with a custom classifier head.
+
+
+    NOTE: We use weights=None because we typically load a state_dict. If you want
+    to evaluate ImageNet-pretrained features without loading a checkpoint, switch to
+    weights=models.MobileNet_V2_Weights.DEFAULT.
+    """
     m = models.mobilenet_v2(weights=None)
     m.classifier[1] = nn.Linear(m.last_channel, num_classes)
     return m
@@ -120,83 +167,6 @@ def build_bnn_model(num_classes=2, keep_first_conv_fp=True):
 
 
 if __name__ == "__main__":
-    print("🚀 Starting model test...")
-
-    # --- Match the data pipeline you used for training ---
-    # You trained with quantized inputs (NQ), so keep this True here:
-    #_, _, test_loader, _ = prepare_data(num_workers=0, quantize_input=False)
-
-    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #print(f"Using device: {device}")
-
-    # ===========================
-    # Choose what you want to test
-    # ===========================
-    # 1) FP32 fine-tuned weights (state_dict)
-    # model_path = "mobilenetv2_binary.pth"; mode = "fp32"
-
-    # 2) FP32 fine-tuned weights with quantized-input training (your new NQ checkpoint)
-    #model_path = "mobilenetv2_best_data_quantized.pth"; mode = "fp32"
-
-    # 3) QAT checkpoint (state_dict) — BEFORE convert_fx
-    # model_path = "mobilenetv2_qat_state.pth"; mode = "qat_state"
-
-    # 4) Converted INT8 full module (.pt)
-    # model_path = "mobilenetv2_int8.pt"; mode = "int8_module"
-
-    # 5) Converted INT8 state_dict (.pth) — rebuild INT8 graph then load
-    # model_path = "mobilenetv2_model_quantized.pth"; mode = "int8_state"
-
-    # 6) Post-training dynamic quant (Linear-only) — not for your NQ run
-    # model_path = "mobilenetv2_NOT_quantized.pth"; mode = "dynamic_linear"
-
-    #print(f"Mode: {mode} | Model path: {model_path}")
-
-    #if mode == "fp32":
-    #    model = build_fp32_model()
-    #    sd = torch.load(model_path, map_location=device)
-    #    model.load_state_dict(sd)
-    #    model = model.to(device).eval()
-
-    #elif mode == "qat_state":
-    #    torch.backends.quantized.engine = "fbgemm"
-    #    model = build_fp32_model().to(device).train()
-    #    example_input = torch.randn(1, 3, 224, 224).to(device)
-    #    qconfig = get_default_qat_qconfig(torch.backends.quantized.engine)
-    #    qconfig_mapping = QConfigMapping().set_global(qconfig)
-    #    model = prepare_qat_fx(model, qconfig_mapping, example_inputs=example_input)
-    #    sd = torch.load(model_path, map_location="cpu")
-    #    model.load_state_dict(sd)
-    #    model = model.to(device).eval()
-
-    #elif mode == "int8_module":
-    #    model = torch.load(model_path, map_location=device, weights_only=False)
-    #    model.eval()
-
-    #elif mode == "int8_state":
-    #    torch.backends.quantized.engine = "fbgemm"
-    #    model = build_fp32_model().to(device).train()
-    #    example_input = torch.randn(1, 3, 224, 224).to(device)
-    #    qconfig = get_default_qat_qconfig(torch.backends.quantized.engine)
-    #    qconfig_mapping = QConfigMapping().set_global(qconfig)
-    #    model = prepare_qat_fx(model, qconfig_mapping, example_inputs=example_input)
-    #    model = convert_fx(model).eval()
-    #    sd = torch.load(model_path, map_location=device)
-    #    model.load_state_dict(sd)
-
-    #elif mode == "dynamic_linear":
-    #    model = build_fp32_model()
-    #    model = torch.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
-    #    sd = torch.load(model_path, map_location=device)
-    #    model.load_state_dict(sd)
-    #    model = model.to(device).eval()
-
-    #else:
-    #    raise ValueError("Unknown mode")
-
-    #evaluate(model, test_loader, device, name="Test")
-
-
-
+    print(" Starting model test...")
 
 
