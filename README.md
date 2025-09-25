@@ -40,7 +40,7 @@ Skin-Disease-Classification/
 
 1.  **Clone the repository:**
     ```sh
-    git clone [https://github.com/glhila/DermaCon-IN-Skin-Disease-Classification.git](https://github.com/glhila/DermaCon-IN-Skin-Disease-Classification.git)
+    git clone https://github.com/glhila/DermaCon-IN-Skin-Disease-Classification.git
     cd Skin-Disease-Classification
     ```
 2.  **Install dependencies:**
