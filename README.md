@@ -52,7 +52,7 @@ Skin-Disease-Classification/
 
 ## Usage
 
-All project operations—including data loading, model training, and evaluation—are orchestrated through `main.py`.
+All project operations-including data loading, model training, and evaluation-are orchestrated through `main.py`.
 
 ### 1. Configure the Run Mode
 
