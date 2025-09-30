@@ -88,4 +88,4 @@ The script will handle the entire process: preparing the data, training the mode
 ## Project Documentation
 
 * **Project Documentation:** [View the project documentation here](<https://docs.google.com/document/d/1h9M2Dn-k3A0Fy51yO-_n6odgEBsHchEi3rhDAGrPjsE/edit?usp=sharing>)
-* **Project Presentation:** [View the project presentation here]()
+* **Project Presentation:** [View the project presentation here](<https://drive.google.com/file/d/1pIHXq6dyN9IyzlG9ef238cuvT6AVgT_Q/view?usp=drive_link>)
