@@ -12,6 +12,20 @@ from torch.utils.data import DataLoader
 # 1) STE binarization blocks
 # ---------------------------
 class _BinarizeSTE(torch.autograd.Function):
+    """
+    Custom autograd.Function implementing STE for binarization.
+    Forward: binarize activations/weights (±1) with optional per-tensor scale.
+    Backward: pass-through gradient (d/dx ≈ 1 in support) — classic STE.
+
+
+    Parameters
+    ----------
+    allow_scale : bool
+    If True, multiply the ±1 mask by max(|x|) to preserve magnitude (XNOR-style).
+    quant_mode : str
+    'det' for deterministic sign; anything else triggers a stochastic-like path
+    (uniform noise injection before rounding) for potential regularization.
+    """
     @staticmethod
     def forward(ctx, x, allow_scale=False, quant_mode='det'):
         scale = x.abs().max() if allow_scale else x.new_tensor(1.0)
@@ -32,13 +46,22 @@ class _BinarizeSTE(torch.autograd.Function):
 
 
 def binarize(x, allow_scale=False, quant_mode='det'):
+    """Convenience wrapper for STE binarization used by layers below."""
     return _BinarizeSTE.apply(x, allow_scale, quant_mode)
 
 
 class BinarizeConv2d(nn.Conv2d):
     """
-    Conv2d that binarizes activations and weights during forward.
-    Backward uses STE. BatchNorm stays float.
+    Conv2d that binarizes **activations** and **weights** during forward.
+    • Activations are binarized without scaling (allow_scale=False)
+    • Weights can optionally use max-abs scaling (allow_scale flag)
+    • BatchNorm is kept in float elsewhere; this layer does not touch BN.
+
+
+    Creation
+    --------
+    Use `BinarizeConv2d.from_conv(existing_conv, ...)` to clone shape/weights
+    from a pretrained Conv2d.
     """
     def __init__(self, *args, allow_scale=False, quant_mode='det', **kwargs):
         super().__init__(*args, **kwargs)
@@ -47,6 +70,7 @@ class BinarizeConv2d(nn.Conv2d):
 
     @classmethod
     def from_conv(cls, conv: nn.Conv2d, allow_scale=False, quant_mode='det'):
+        """Factory: copy hyperparams and weights/bias from an existing Conv2d."""
         new = cls(
             in_channels=conv.in_channels,
             out_channels=conv.out_channels,
@@ -60,14 +84,17 @@ class BinarizeConv2d(nn.Conv2d):
             allow_scale=allow_scale,
             quant_mode=quant_mode,
         )
+        # Copy parameters to preserve initialization / pretrained state
         new.weight.data.copy_(conv.weight.data)
         if conv.bias is not None:
             new.bias.data.copy_(conv.bias.data)
         return new
 
     def forward(self, x):
+        # Binarize activations (no scaling) and weights (optionally scaled)
         x_b = binarize(x, allow_scale=False, quant_mode=self.quant_mode)
         w_b = binarize(self.weight, allow_scale=self.allow_scale, quant_mode=self.quant_mode)
+        # Use torch.nn.functional conv2d to apply the binarized weights
         return F.conv2d(x_b, w_b, self.bias, self.stride, self.padding, self.dilation, self.groups)
 
 
@@ -79,17 +106,21 @@ def convert_mobilenetv2_to_bnn(mnet: nn.Module,
                                quant_mode: str = 'det',
                                allow_scale: bool = False) -> nn.Module:
     """
-    Replace every Conv2d in features with BinarizeConv2d.
-    Classifier (final Linear) stays float.
+    Replace every Conv2d inside `mnet.features` with `BinarizeConv2d`.
+    • If keep_first_conv_fp=True, the very first image conv remains FP to
+    preserve low-level features / stabilize training.
+    • The classifier (final Linear) is **not** modified.
     """
-    first_conv_seen = [False]
+    first_conv_seen = [False] # mutable flag closed over by _convert
 
     def _convert(module: nn.Module):
         for name, child in list(module.named_children()):
             if isinstance(child, nn.Conv2d):
                 if keep_first_conv_fp and not first_conv_seen[0]:
+                    # Keep the very first Conv2d (input stem) in float
                     first_conv_seen[0] = True  # keep the very first image conv in float
                 else:
+                    # Replace with binarized version (clone shape/params)
                     setattr(module, name, BinarizeConv2d.from_conv(child,
                                                                   allow_scale=allow_scale,
                                                                   quant_mode=quant_mode))
@@ -114,6 +145,20 @@ def train_model_quantized(
     """
     Progressive fine-tuning in 3 stages with a BNN feature extractor (classifier remains float).
     Includes per-epoch validation (ValLoss/ValAcc), optional ReduceLROnPlateau, and early stopping per stage.
+
+
+    Parameters
+    ----------
+    data_is_quantized : bool
+    Only affects the *filename* for the global-best checkpoint (for bookkeeping).
+    stage_epochs : (int, int, int)
+    #epochs per stage: (classifier-only, last blocks, deeper blocks).
+    early_stop_patience : int
+    Number of non-improving epochs (by ValLoss) before stopping the current stage.
+    use_lr_on_plateau : bool
+    Whether to enable ReduceLROnPlateau on validation loss.
+    train_loader / val_loader : DataLoader
+    Must yield (images, labels). No augmentation/quantization is done here.
     """
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -130,7 +175,7 @@ def train_model_quantized(
         quant_mode='det',
         allow_scale=False
     ).to(device)
-
+    # Stage plan: progressively unfreeze more of the feature extractor
     stages = [
         {"layers": ["classifier"], "epochs": stage_epochs[0], "lr": 1e-3,  "name": "Stage 1: Classifier only"},
         {"layers": ["features.15", "features.16", "features.17", "features.18", "classifier"],
@@ -154,11 +199,11 @@ def train_model_quantized(
         best_val_loss_stage = float("inf")
         early_stopping_counter = 0
 
-        # Freeze all
+        # Freeze everything first
         for p in model.parameters():
             p.requires_grad = False
 
-        # Unfreeze requested layers
+        # Unfreeze parameters whose name contains any of the stage layer tokens
         for name, p in model.named_parameters():
             if any(layer in name for layer in stage["layers"]):
                 p.requires_grad = True
@@ -213,7 +258,7 @@ def train_model_quantized(
 
             val_loss /= max(1, val_total)
             val_acc = val_correct / max(1, val_total)
-
+            # Step LR scheduler based on val loss
             if scheduler is not None:
                 scheduler.step(val_loss)
 
@@ -264,4 +309,5 @@ def train_model_quantized(
 
 
 if __name__ == "__main__":
+    # Entry point: uses default args and expects train/val loaders to be provided by caller
     train_model_quantized()

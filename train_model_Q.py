@@ -16,11 +16,23 @@ ENDC = "\033[0m"
 def train_model():
     """
     Quantization-Aware Training (QAT) + Progressive fine-tuning of MobileNetV2 in 3 stages:
-      1) Train classifier only
-      2) Unfreeze deeper blocks (features.15–18 + classifier)
-      3) Unfreeze features.8–18 + classifier
+    1) Train classifier only
+    2) Unfreeze deeper blocks (features.15–18 + classifier)
+    3) Unfreeze features.8–18 + classifier
+
+
     During training, fake-quant + observers simulate INT8. After training, we convert
     to a real INT8 model and save BOTH the QAT checkpoint and the converted model.
+
+
+    Notes
+    -----
+    • Expects binary classification (2 classes). Change classifier[1] if #classes ≠ 2.
+    • This script uses FX QAT (prepare_qat_fx/convert_fx). FX may rename params ('.'→'_').
+    • The dataloaders come from prepare_data(); they must return (images, labels).
+    • For QAT stability, we freeze observers and BN stats near the end of training.
+    • No validation/early-stopping here (training-only metrics). Consider adding a
+    val loop if you want to checkpoint the best model.
     """
 
     # -------------------
@@ -31,26 +43,27 @@ def train_model():
     print(f"{YELLOW}Using device: {device}{ENDC}")
 
     # -------------------
-    # Load pretrained base
+    # Load pretrained base (MobileNetV2) and adapt classifier to 2 classes
     # -------------------
     model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.DEFAULT)
     model.classifier[1] = nn.Linear(model.last_channel, 2)
 
     # -------------------
-    # QAT config (FX)
+    # QAT config (FX) — insert observers/fake-quant via prepare_qat_fx
     # -------------------
     # Use "fbgemm" for x86 (Windows/Linux). If targeting ARM/mobile, set to "qnnpack".
     torch.backends.quantized.engine = "fbgemm"
     qat_qconfig = get_default_qat_qconfig(torch.backends.quantized.engine)
     qconfig_mapping = QConfigMapping().set_global(qat_qconfig)
 
-    # Prepare for QAT (insert observers + fake-quant)
+    # Prepare for QAT (graph rewrite adds observers + fake-quant modules).
+    # example_input is required so FX can trace the graph (shape must match real input).
     model = model.to(device).train()
     example_input = torch.randn(1, 3, 224, 224).to(device)  # match your input size
     model = prepare_qat_fx(model, qconfig_mapping, example_inputs=example_input)
 
     # -------------------
-    # Stage configs
+    # Stage configs (progressive unfreezing + LR schedule per stage)
     # -------------------
     stages = [
         {"layers": ["classifier"], "epochs": 2, "lr": 1e-3,   "name": "Stage 1: Classifier only"},
@@ -97,7 +110,7 @@ def train_model():
                 try:
                     mod.activation_post_process.disable_observer()
                 except Exception:
-                    pass
+                    pass # some modules may not expose this cleanly
 
     def freeze_bn_stats(m):
         # Freeze BatchNorm running stats near the end for stability
@@ -111,10 +124,10 @@ def train_model():
     def run_training(model, stage, stage_idx):
         nonlocal completed_epochs
 
-        # Freeze/unfreeze for this stage
+        # Freeze/unfreeze for this stage (only target submodules will update)
         set_trainable_params(model, stage["layers"])
 
-        # Optimizer + loss
+        # Optimizer + loss (CrossEntropy for 2-class classification)
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam((p for p in model.parameters() if p.requires_grad), lr=stage["lr"])
 
@@ -138,25 +151,25 @@ def train_model():
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
-
+                # Accumulate stats per batch (scale by batch size for correct epoch mean)
                 running_loss += loss.item() * inputs.size(0)
                 correct += outputs.argmax(dim=1).eq(labels).sum().item()
                 total_samples += labels.size(0)
-
+            # Epoch-level metrics (training only in this script)
             avg_loss = running_loss / max(1, total_samples)
             acc = correct / max(1, total_samples)
             epoch_time = time.time() - epoch_start
 
-            # QAT schedules
+            # QAT schedules — typical heuristic: disable observers at ~70%, freeze BN at ~90%
             completed_epochs += 1
             if completed_epochs == int(0.7 * total_epochs):
-                print(f"{YELLOW}🔒 Disabling observers (freeze quant ranges){ENDC}")
+                print(f"{YELLOW} Disabling observers (freeze quant ranges){ENDC}")
                 disable_observers(model)
             if completed_epochs == int(0.9 * total_epochs):
-                print(f"{YELLOW}❄️  Freezing BatchNorm running stats{ENDC}")
+                print(f"{YELLOW}️  Freezing BatchNorm running stats{ENDC}")
                 freeze_bn_stats(model)
 
-            # ETA
+            # Rough ETA from average epoch time so far
             elapsed = time.time() - global_start
             avg_epoch_time = elapsed / max(1, completed_epochs)
             est_remaining = avg_epoch_time * (total_epochs - completed_epochs)
@@ -170,7 +183,7 @@ def train_model():
             )
 
         stage_time = time.time() - stage_start
-        print(f"{YELLOW}✅ {stage['name']} finished in {stage_time/60:.1f} min{ENDC}")
+        print(f"{YELLOW} {stage['name']} finished in {stage_time/60:.1f} min{ENDC}")
 
     # -------------------
     # Run all stages (QAT)
@@ -179,13 +192,13 @@ def train_model():
         run_training(model, stage, i)
 
     total_time = time.time() - global_start
-    print(f"\n{YELLOW}🏁 Training complete in {total_time/60:.1f} minutes total.{ENDC}")
+    print(f"\n{YELLOW} Training complete in {total_time/60:.1f} minutes total.{ENDC}")
 
     # -------------------
     # Save QAT checkpoint (trainable: float weights + fake-quant + observers)
     # -------------------
     torch.save(model.state_dict(), "extra/mobilenetv2_qat_state.pth")
-    print(f"{YELLOW}📦 QAT checkpoint saved as mobilenetv2_qat_state.pth{ENDC}")
+    print(f"{YELLOW} QAT checkpoint saved as mobilenetv2_qat_state.pth{ENDC}")
 
     # -------------------
     # Convert to INT8 for inference + save FULL MODEL (recommended)
@@ -193,11 +206,11 @@ def train_model():
     model.eval()
     int8_model = convert_fx(model)
     torch.save(int8_model, "extra/mobilenetv2_int8.pt")  # full module, easy to load
-    print(f"{YELLOW}🧊 INT8 model saved as mobilenetv2_int8.pt{ENDC}")
+    print(f"{YELLOW} INT8 model saved as mobilenetv2_int8.pt{ENDC}")
 
     # (Optional) also save the INT8 state_dict if you want:
     torch.save(int8_model.state_dict(), "mobilenetv2_model_quantized.pth")
-    print(f"{YELLOW}🧊 INT8 state_dict saved as mobilenetv2_model_quantized.pth{ENDC}")
+    print(f"{YELLOW} INT8 state_dict saved as mobilenetv2_model_quantized.pth{ENDC}")
 
 if __name__ == "__main__":
     train_model()
