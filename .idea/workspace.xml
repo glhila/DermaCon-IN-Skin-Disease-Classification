@@ -5,27 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="model D done">
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_26_08_2025_11_22_[Changes]1/shelved.patch" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_26_08_2025_11_22__Changes_1.xml" beforeDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.ask.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.edit.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/STE_model.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extra/mobilenetv2_int8.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extra/mobilenetv2_qat_state.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extra/model_test.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extra/quantize_model.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobilenetv2_best_model_quantized.pth" beforeDir="false" afterPath="$PROJECT_DIR$/mobilenetv2_best_model_quantized.pth" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobilenetv2_best_quantized.pth" beforeDir="false" afterPath="$PROJECT_DIR$/mobilenetv2_best_data_quantized.pth" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/newTester.py" beforeDir="false" afterPath="$PROJECT_DIR$/newTester.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/continue_training.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/deep_finetune.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/finetune_feature18.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/mobilenetv2_binary.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/mobilenetv2_config.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/model_training.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/train_config.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/weighted_finetune.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/train_model_Q.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/data_preparation.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_preparation.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -56,21 +40,23 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Python.data_preparation.executor&quot;: &quot;Run&quot;,
-    &quot;Python.helper.executor&quot;: &quot;Run&quot;,
-    &quot;Python.project.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.data_preparation.executor": "Run",
+    "Python.helper.executor": "Run",
+    "Python.project.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "git-widget-placeholder": "master"
   }
-}</component>
+}]]></component>
   <component name="RunManager" selected="Python.main">
     <configuration name="deep_finetune" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="AdvancedComputerArchitectures" />
+      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -92,6 +78,7 @@
     </configuration>
     <configuration name="main" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="AdvancedComputerArchitectures" />
+      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -113,6 +100,7 @@
     </configuration>
     <configuration name="model_test" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="AdvancedComputerArchitectures" />
+      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -134,6 +122,7 @@
     </configuration>
     <configuration name="newTester" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="AdvancedComputerArchitectures" />
+      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -155,6 +144,7 @@
     </configuration>
     <configuration name="weighted_finetune" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="AdvancedComputerArchitectures" />
+      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -187,7 +177,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-e0ed3721d81e-36ea0e71a18c-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.25410.159" />
+        <option value="bundled-python-sdk-c84de207d46e-64d779b69b7a-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.28293.52" />
       </set>
     </attachedChunks>
   </component>

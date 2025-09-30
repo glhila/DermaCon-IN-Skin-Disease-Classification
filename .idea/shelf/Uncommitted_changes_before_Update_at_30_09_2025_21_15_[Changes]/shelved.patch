@@ -1,0 +1,51 @@
+Index: .idea/copilot.data.migration.ask.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/copilot.data.migration.ask.xml b/.idea/copilot.data.migration.ask.xml
+new file mode 100644
+--- /dev/null	(date 1759255987364)
++++ b/.idea/copilot.data.migration.ask.xml	(date 1759255987364)
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="AskMigrationStateService">
++    <option name="migrationStatus" value="COMPLETED" />
++  </component>
++</project>
+\ No newline at end of file
+Index: .idea/copilot.data.migration.agent.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/copilot.data.migration.agent.xml b/.idea/copilot.data.migration.agent.xml
+new file mode 100644
+--- /dev/null	(date 1759255987364)
++++ b/.idea/copilot.data.migration.agent.xml	(date 1759255987364)
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="AgentMigrationStateService">
++    <option name="migrationStatus" value="COMPLETED" />
++  </component>
++</project>
+\ No newline at end of file
+Index: .idea/copilot.data.migration.edit.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/copilot.data.migration.edit.xml b/.idea/copilot.data.migration.edit.xml
+new file mode 100644
+--- /dev/null	(date 1759255987371)
++++ b/.idea/copilot.data.migration.edit.xml	(date 1759255987371)
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="EditMigrationStateService">
++    <option name="migrationStatus" value="COMPLETED" />
++  </component>
++</project>
+\ No newline at end of file
