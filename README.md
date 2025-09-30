@@ -13,9 +13,9 @@ Skin-Disease-Classification/
 │   ├── data_preparation.py           # Builds datasets, transforms, and DataLoaders
 │   ├── main.py                       # Main entry point to run training and evaluation
 │   ├── model_validation.py           # Utilities for model evaluation and metrics
-│   ├── training_STE.py           # Quantized training (QAT/STE) for MobileNetV2
-│   ├── model_tester.py                  # Standalone evaluation of saved checkpoints
-│   └── train_model_NQ.py             # Non‑quantized training loop (MobileNetV2 backbone)
+│   ├── model_tester.py               # Standalone evaluation of saved checkpoints
+│   ├── train_model_NQ.py             # Non‑quantized training loop (MobileNetV2 backbone)
+│   └── train_model_Q.py              # Quantized training (QAT/STE) for MobileNetV2
 │
 ├── results/                          # Directory for saving trained model checkpoints
 │   ├── mobilenetv2_best_not_quantized.pth       # Non-quantized data + Non-quantized model (Mode A)
