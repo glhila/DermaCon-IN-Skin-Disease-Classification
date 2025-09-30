@@ -13,7 +13,7 @@ Skin-Disease-Classification/
 │   ├── data_preparation.py           # Builds datasets, transforms, and DataLoaders
 │   ├── main.py                       # Main entry point to run training and evaluation
 │   ├── model_validation.py           # Utilities for model evaluation and metrics
-│   ├── model_tester.py               # Standalone evaluation of saved checkpoints
+│   ├── model_testing.py              # Standalone evaluation of saved checkpoints
 │   ├── train_model_NQ.py             # Non‑quantized training loop (MobileNetV2 backbone)
 │   └── train_model_Q.py              # Quantized training (QAT/STE) for MobileNetV2
 │
