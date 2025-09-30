@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 from torchvision import models
- , accuracy_score, classification_report
+from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 from torch.utils.data import DataLoader
-from New_training_STE import convert_mobilenetv2_to_bnn
+from training_STE import convert_mobilenetv2_to_bnn
 
 #from data_preparation import prepare_data
 
@@ -29,7 +29,7 @@ def load_model_for_eval(model_path: str, mode: str, device: torch.device, num_cl
         return model.to(device).eval()
 
     if mode == "bnn_state":
-        # BNN checkpoint from New_training_STE.py (binary convs, float classifier)
+        # BNN checkpoint from training_STE.py (binary convs, float classifier)
         model = build_bnn_model(num_classes=num_classes)
         sd = torch.load(model_path, map_location=device)
         model.load_state_dict(sd)

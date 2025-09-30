@@ -4,28 +4,16 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="model D done">
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_26_08_2025_11_22_[Changes]1/shelved.patch" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_26_08_2025_11_22__Changes_1.xml" beforeDir="false" />
+    <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="remove irrelevent files, change names to needed files">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/STE_model.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extra/mobilenetv2_int8.pt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extra/mobilenetv2_qat_state.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extra/model_test.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extra/quantize_model.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/New_training_STE.py" beforeDir="false" afterPath="$PROJECT_DIR$/training_STE.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobilenetv2_NOT_quantized.pth" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/mobilenetv2_best_model_quantized.pth" beforeDir="false" afterPath="$PROJECT_DIR$/mobilenetv2_best_model_quantized.pth" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobilenetv2_best_quantized.pth" beforeDir="false" afterPath="$PROJECT_DIR$/mobilenetv2_best_data_quantized.pth" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/newTester.py" beforeDir="false" afterPath="$PROJECT_DIR$/newTester.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/continue_training.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/deep_finetune.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/finetune_feature18.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/mobilenetv2_binary.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/mobilenetv2_config.pth" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/model_training.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/train_config.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/old_training/weighted_finetune.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/train_model_Q.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobilenetv2_data_quantized.pth" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mobilenetv2_model_quantized.pth" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/newTester.py" beforeDir="false" afterPath="$PROJECT_DIR$/Tester.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -69,6 +57,27 @@
   }
 }</component>
   <component name="RunManager" selected="Python.main">
+    <configuration name="Tester" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="AdvancedComputerArchitectures" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="C:\Users\hgkhe\DermaCon-IN-Skin-Disease-Classification\VE\Scripts\python.exe" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="C:\Users\hgkhe\DermaCon-IN-Skin-Disease-Classification\Tester.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="deep_finetune" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="AdvancedComputerArchitectures" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -124,27 +133,6 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/model_test.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="newTester" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="AdvancedComputerArchitectures" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="C:\Users\hgkhe\DermaCon-IN-Skin-Disease-Classification\VE\Scripts\python.exe" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/newTester.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -235,7 +223,14 @@
       <option name="project" value="LOCAL" />
       <updated>1756323904831</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="remove irrelevent files, change names to needed files">
+      <created>1759244876565</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1759244876567</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -253,6 +248,7 @@
     <MESSAGE value="training with STE" />
     <MESSAGE value="added tester for C and D" />
     <MESSAGE value="model C done" />
-    <option name="LAST_COMMIT_MESSAGE" value="model C done" />
+    <MESSAGE value="remove irrelevent files, change names to needed files" />
+    <option name="LAST_COMMIT_MESSAGE" value="remove irrelevent files, change names to needed files" />
   </component>
 </project>
