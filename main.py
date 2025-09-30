@@ -30,8 +30,8 @@ mobilenetv2_best_data_quantized.pth depending on data_is_quantized)
 
 from data_preparation import prepare_data
 from train_model_NQ import train_model
-from New_training_STE import train_model_quantized
-from newTester import evaluate_saved_model
+from training_STE import train_model_quantized
+from Tester import evaluate_saved_model
 
 def run_models(mode):
     match mode:
