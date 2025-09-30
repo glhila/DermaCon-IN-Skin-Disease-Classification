@@ -25,21 +25,25 @@ def train_model(
     """
 
     # -------------------
-    # Device
+    # Device setup (use GPU if available, otherwise CPU)
     # -------------------
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # -------------------
-    # Model
+    # Load pretrained MobileNetV2 and replace final classifier for 2 classes
     # -------------------
     model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.DEFAULT)
     model.classifier[1] = nn.Linear(model.last_channel, 2)
     model = model.to(device)
 
     # -------------------
-    # Stages
+    # Define training stages
+    # Each stage specifies which layers to unfreeze, number of epochs, and learning rate
     # -------------------
+    # TIP: The current layer matching is substring-based (e.g., "features").
+    # For finer control, you can enumerate specific block ranges instead of
+    # opening all features.
     stages = [
         {"layers": ["classifier"], "epochs": stage_epochs[0], "lr": 0.001, "name": "Stage 1: Classifier only"},
         {"layers": ["features", "classifier"], "epochs": stage_epochs[1], "lr": 0.0001,
@@ -52,11 +56,11 @@ def train_model(
     completed_epochs = 0
     global_start = time.time()
 
-    # Track best across all stages
+    # Track best across all stages (by validation accuracy) for checkpointing
     best_val_acc_global = 0.0
 
     # -------------------
-    # Training loop helper
+    # Internal helper function: run training for one stage
     # -------------------
     def run_training(model, stage, stage_idx):
         nonlocal completed_epochs, best_val_acc_global
@@ -66,38 +70,43 @@ def train_model(
         early_stopping_counter = 0
         patience = early_stop_patience
 
-        # Freeze all
+        # Freeze all parameters first — we will selectively unfreeze per stage
         for p in model.parameters():
             p.requires_grad = False
 
-        # Unfreeze requested
+        # Unfreeze only the layers required for this stage.
+        # NOTE: This uses substring matching (e.g., "features" matches all feature blocks).
         for name, p in model.named_parameters():
             if any(layer in name for layer in stage["layers"]):
                 p.requires_grad = True
 
-        # Optimizer / loss / scheduler
+        # Define loss function (CrossEntropy for classification), optimizer, and optional LR scheduler
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam((p for p in model.parameters() if p.requires_grad), lr=stage["lr"])
         scheduler = None
         if use_lr_on_plateau:
+            # Reduce LR if validation loss plateaus; cooldown lets it breathe after a reduction
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer, mode="min", factor=0.1, patience=2, cooldown=1, min_lr=1e-6,
             )
 
-        # Info
+        # Print info about trainable parameters
         frozen = sum(int(not p.requires_grad) for p in model.parameters())
         total = sum(1 for _ in model.parameters())
         print(f"\n--- {stage['name']} ---")
         print(f"Trainable params (tensors): {total - frozen}/{total}, LR={stage['lr']}, Epochs={stage['epochs']}")
 
         stage_start = time.time()
-
+        # -------------------
+        # Epoch loop for this stage
+        # -------------------
         for epoch in range(stage["epochs"]):
             epoch_start = time.time()
             model.train()
 
             running_loss, correct, total_samples = 0.0, 0, 0
 
+            # --- Training on all batches ---
             for xb, yb in train_loader:
                 xb, yb = xb.to(device), yb.to(device)
 
@@ -106,7 +115,7 @@ def train_model(
                 loss = criterion(out, yb)
                 loss.backward()
                 optimizer.step()
-
+                # Accumulate statistics scaled by batch size so epoch averages are correct
                 running_loss += loss.item() * xb.size(0)
                 correct += out.argmax(1).eq(yb).sum().item()
                 total_samples += yb.size(0)
@@ -128,11 +137,11 @@ def train_model(
 
             val_loss /= max(1, val_total)
             val_acc = val_correct / max(1, val_total)
-
+            # Step LR scheduler *after* computing validation loss
             if scheduler is not None:
                 scheduler.step(val_loss)
 
-            # Progress / ETA
+            # Progress / ETA (rough estimate using average epoch time so far)
             completed_epochs += 1
             elapsed = time.time() - global_start
             avg_epoch_time = elapsed / max(1, completed_epochs)
@@ -147,6 +156,7 @@ def train_model(
             )
 
             # ----- Early stopping (per stage by val_loss) -----
+            # If val_loss improves, reset patience and keep the weights
             if val_loss < best_val_loss_stage:
                 best_val_loss_stage = val_loss
                 early_stopping_counter = 0
@@ -157,7 +167,7 @@ def train_model(
                     print("Early stopping triggered for this stage.")
                     break
 
-            # Save best-by-accuracy across all stages
+            # Save best-by-accuracy across all stages (global checkpoint)
             if val_acc > best_val_acc_global:
                 best_val_acc_global = val_acc
                 torch.save(
@@ -169,7 +179,7 @@ def train_model(
                     f"Saved: {'mobilenetv2_best_data_quantized.pth' if data_is_quantized else 'mobilenetv2_best_not_quantized.pth'}"
                 )
 
-        # Restore best weights for this stage (if any)
+        # Restore best weights for this stage (based on lowest val loss)
         if best_model_weights_stage is not None:
             model.load_state_dict(best_model_weights_stage)
 
