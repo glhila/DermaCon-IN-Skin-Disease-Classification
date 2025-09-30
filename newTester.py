@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torchvision import models
-from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
+ , accuracy_score, classification_report
 from torch.utils.data import DataLoader
 from New_training_STE import convert_mobilenetv2_to_bnn
 
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     # model_path = "mobilenetv2_binary.pth"; mode = "fp32"
 
     # 2) FP32 fine-tuned weights with quantized-input training (your new NQ checkpoint)
-    # model_path = "mobilenetv2_best_quantized.pth"; mode = "fp32"
+    #model_path = "mobilenetv2_best_data_quantized.pth"; mode = "fp32"
 
     # 3) QAT checkpoint (state_dict) — BEFORE convert_fx
     # model_path = "mobilenetv2_qat_state.pth"; mode = "qat_state"
@@ -195,3 +195,8 @@ if __name__ == "__main__":
     #    raise ValueError("Unknown mode")
 
     #evaluate(model, test_loader, device, name="Test")
+
+
+
+
+
