@@ -15,7 +15,7 @@ Notes:
   * train_model_NQ.train_model(...): FP32 fine-tuning (saves mobilenetv2_best_not_quantized.pth or
     mobilenetv2_best_data_quantized.pth depending on data_is_quantized)
   * train_model_Q.train_model_quantized(...): BNN/QAT training (saves *_model_quantized.pth / *_fully_quantized.pth)
-  * model_tester.evaluate_saved_model(path, mode, test_loader=...): evaluation utility
+  * model_testing.evaluate_saved_model(path, mode, test_loader=...): evaluation utility
 
 - If you change checkpoint names in training functions, update the evaluate paths here.
 - Consider seeding RNGs (torch, random, numpy) in prepare_data or here for reproducibility.
@@ -24,7 +24,7 @@ Notes:
 from data_preparation import prepare_data
 from train_model_NQ import train_model
 from train_model_Q import train_model_quantized
-from model_tester import evaluate_saved_model
+from model_testing import evaluate_saved_model
 
 def run_models(mode):
     """Run one of four experiment configurations (A, B, C, or D).

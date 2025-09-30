@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from data_preparation import prepare_data
 from sklearn.metrics import classification_report, accuracy_score
-from model_tester import load_model_for_eval
+from model_testing import load_model_for_eval
 
 
 def evaluate(model, dataloader, device, name="Validation"):
