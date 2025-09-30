@@ -5,6 +5,7 @@
   </component>
   <component name="ChangeListManager">
 <<<<<<< HEAD
+<<<<<<< HEAD
     <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="model D done">
       <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.ask.xml" afterDir="false" />
@@ -13,16 +14,23 @@
       <change beforePath="$PROJECT_DIR$/data_preparation.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_preparation.py" afterDir="false" />
 =======
     <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="remove irrelevent files, change names to needed files">
+=======
+    <list default="true" id="76d599b7-3b0b-46cb-9767-7328987164f9" name="Changes" comment="rename files, add model c, remove irrelevent files">
+>>>>>>> 41f9cb6c0735eeb7f4d8a0cf5caf2a4e49aece6f
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/New_training_STE.py" beforeDir="false" afterPath="$PROJECT_DIR$/training_STE.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Tester.py" beforeDir="false" afterPath="$PROJECT_DIR$/model_tester.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+<<<<<<< HEAD
       <change beforePath="$PROJECT_DIR$/mobilenetv2_NOT_quantized.pth" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/mobilenetv2_best_model_quantized.pth" beforeDir="false" afterPath="$PROJECT_DIR$/mobilenetv2_best_model_quantized.pth" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mobilenetv2_data_quantized.pth" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/mobilenetv2_model_quantized.pth" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/newTester.py" beforeDir="false" afterPath="$PROJECT_DIR$/Tester.py" afterDir="false" />
 >>>>>>> 37f52dd93bd87722e273aebbf96b4bd3707fbc35
+=======
+      <change beforePath="$PROJECT_DIR$/train_model_Q.py" beforeDir="false" />
+>>>>>>> 41f9cb6c0735eeb7f4d8a0cf5caf2a4e49aece6f
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -67,27 +75,6 @@
   }
 }]]></component>
   <component name="RunManager" selected="Python.main">
-    <configuration name="Tester" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="AdvancedComputerArchitectures" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="C:\Users\hgkhe\DermaCon-IN-Skin-Disease-Classification\VE\Scripts\python.exe" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="C:\Users\hgkhe\DermaCon-IN-Skin-Disease-Classification\Tester.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
     <configuration name="deep_finetune" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="AdvancedComputerArchitectures" />
       <option name="ENV_FILES" value="" />
@@ -155,9 +142,14 @@
       <method v="2" />
     </configuration>
 <<<<<<< HEAD
+<<<<<<< HEAD
     <configuration name="newTester" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="AdvancedComputerArchitectures" />
       <option name="ENV_FILES" value="" />
+=======
+    <configuration name="model_tester" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="AdvancedComputerArchitectures" />
+>>>>>>> 41f9cb6c0735eeb7f4d8a0cf5caf2a4e49aece6f
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -168,7 +160,11 @@
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+<<<<<<< HEAD
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/newTester.py" />
+=======
+      <option name="SCRIPT_NAME" value="C:\Users\hgkhe\DermaCon-IN-Skin-Disease-Classification\model_tester.py" />
+>>>>>>> 41f9cb6c0735eeb7f4d8a0cf5caf2a4e49aece6f
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -177,8 +173,11 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+<<<<<<< HEAD
 =======
 >>>>>>> 37f52dd93bd87722e273aebbf96b4bd3707fbc35
+=======
+>>>>>>> 41f9cb6c0735eeb7f4d8a0cf5caf2a4e49aece6f
     <configuration name="weighted_finetune" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="AdvancedComputerArchitectures" />
       <option name="ENV_FILES" value="" />
@@ -204,7 +203,7 @@
     <recent_temporary>
       <list>
         <item itemvalue="Python.main" />
-        <item itemvalue="Python.newTester" />
+        <item itemvalue="Python.model_tester" />
         <item itemvalue="Python.model_test" />
         <item itemvalue="Python.weighted_finetune" />
         <item itemvalue="Python.deep_finetune" />
@@ -269,7 +268,14 @@
       <option name="project" value="LOCAL" />
       <updated>1759244876567</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="rename files, add model c, remove irrelevent files">
+      <created>1759255984927</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1759255984927</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -288,6 +294,7 @@
     <MESSAGE value="added tester for C and D" />
     <MESSAGE value="model C done" />
     <MESSAGE value="remove irrelevent files, change names to needed files" />
-    <option name="LAST_COMMIT_MESSAGE" value="remove irrelevent files, change names to needed files" />
+    <MESSAGE value="rename files, add model c, remove irrelevent files" />
+    <option name="LAST_COMMIT_MESSAGE" value="rename files, add model c, remove irrelevent files" />
   </component>
 </project>

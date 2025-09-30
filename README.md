@@ -14,7 +14,7 @@ Skin-Disease-Classification/
 │   ├── main.py                       # Main entry point to run training and evaluation
 │   ├── model_validation.py           # Utilities for model evaluation and metrics
 │   ├── training_STE.py           # Quantized training (QAT/STE) for MobileNetV2
-│   ├── Tester.py                  # Standalone evaluation of saved checkpoints
+│   ├── model_tester.py                  # Standalone evaluation of saved checkpoints
 │   └── train_model_NQ.py             # Non‑quantized training loop (MobileNetV2 backbone)
 │
 ├── results/                          # Directory for saving trained model checkpoints
@@ -88,4 +88,4 @@ The script will handle the entire process: preparing the data, training the mode
 ## Project Documentation
 
 * **Project Documentation:** [View the project documentation here](<https://docs.google.com/document/d/1h9M2Dn-k3A0Fy51yO-_n6odgEBsHchEi3rhDAGrPjsE/edit?usp=sharing>)
-* **Project Presentation:** [View the project presentation here]()
+* **Project Presentation:** [View the project presentation here](<https://drive.google.com/file/d/1pIHXq6dyN9IyzlG9ef238cuvT6AVgT_Q/view?usp=drive_link>)
